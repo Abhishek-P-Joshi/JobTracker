@@ -1,0 +1,124 @@
+from datetime import datetime
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from ..database import get_db
+from ..models import Job, StatusHistory, Profile
+from ..schemas import JobCreate, JobUpdate, JobOut, MoveJobsRequest
+
+router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+VALID_STATUSES = {"wishlist", "applied", "screening", "interview", "offer", "rejected", "ghosted"}
+VALID_WORK_TYPES = {"remote", "hybrid", "onsite", "unknown"}
+
+
+def _write_status_history(db: Session, job_id: int, old_status: Optional[str], new_status: str, note: Optional[str] = None):
+    entry = StatusHistory(job_id=job_id, old_status=old_status, new_status=new_status, note=note)
+    db.add(entry)
+
+
+@router.get("", response_model=list[JobOut])
+def list_jobs(
+    profile_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+    work_type: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    sort_by: str = Query("created_at"),
+    order: str = Query("desc"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Job)
+    if profile_id is not None:
+        q = q.filter(Job.profile_id == profile_id)
+    if status:
+        q = q.filter(Job.status == status)
+    if work_type:
+        q = q.filter(Job.work_type == work_type)
+    if search:
+        term = f"%{search}%"
+        q = q.filter(
+            Job.company.ilike(term) | Job.title.ilike(term) | Job.location.ilike(term)
+        )
+    col = getattr(Job, sort_by, Job.created_at)
+    q = q.order_by(col.desc() if order == "desc" else col.asc())
+    return q.all()
+
+
+@router.post("", response_model=JobOut, status_code=201)
+def create_job(data: JobCreate, db: Session = Depends(get_db)):
+    profile = db.query(Profile).filter(Profile.id == data.profile_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+    if data.status not in VALID_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Choose from: {', '.join(VALID_STATUSES)}")
+    if data.work_type not in VALID_WORK_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid work_type. Choose from: {', '.join(VALID_WORK_TYPES)}")
+
+    job = Job(**data.model_dump())
+    db.add(job)
+    db.flush()
+    _write_status_history(db, job.id, None, job.status)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+@router.get("/{job_id}", response_model=JobOut)
+def get_job(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job
+
+
+@router.put("/{job_id}", response_model=JobOut)
+def update_job(job_id: int, data: JobUpdate, db: Session = Depends(get_db)):
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    update_data = data.model_dump(exclude_unset=True)
+
+    if "status" in update_data and update_data["status"] not in VALID_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Choose from: {', '.join(VALID_STATUSES)}")
+    if "work_type" in update_data and update_data["work_type"] not in VALID_WORK_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid work_type. Choose from: {', '.join(VALID_WORK_TYPES)}")
+
+    old_status = job.status
+    for field, value in update_data.items():
+        setattr(job, field, value)
+
+    if "status" in update_data and update_data["status"] != old_status:
+        _write_status_history(db, job.id, old_status, update_data["status"])
+
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+@router.delete("/{job_id}", status_code=204)
+def delete_job(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    db.delete(job)
+    db.commit()
+
+
+@router.patch("/move", response_model=list[JobOut])
+def move_jobs(data: MoveJobsRequest, db: Session = Depends(get_db)):
+    target = db.query(Profile).filter(Profile.id == data.target_profile_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target profile not found.")
+
+    jobs = db.query(Job).filter(Job.id.in_(data.job_ids)).all()
+    if not jobs:
+        raise HTTPException(status_code=404, detail="No matching jobs found.")
+
+    for job in jobs:
+        job.profile_id = data.target_profile_id
+
+    db.commit()
+    for job in jobs:
+        db.refresh(job)
+    return jobs

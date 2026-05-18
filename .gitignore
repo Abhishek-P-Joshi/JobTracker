@@ -1,0 +1,21 @@
+# Python
+job-tracker/backend/venv/
+job-tracker/backend/__pycache__/
+job-tracker/backend/app/__pycache__/
+job-tracker/backend/app/routers/__pycache__/
+job-tracker/backend/jobs.db
+job-tracker/backend/*.pyc
+**/__pycache__/
+**/*.pyc
+
+# Node
+job-tracker/dashboard/node_modules/
+job-tracker/dashboard/dist/
+
+# Env
+.env
+*.env.local
+backend/tokens.json
+
+# OS
+.DS_Store
