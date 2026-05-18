@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import ProfileSwitcher from '../ProfileSwitcher';
+import AddJobModal from '../AddJobModal';
+import KeyboardShortcutsHelp from '../KeyboardShortcutsHelp';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { useProfile } from '../../hooks/useProfile';
 import { api } from '../../api/client';
 
 const NAV = [
@@ -12,6 +16,14 @@ const NAV = [
 
 export default function AppShell() {
   const [backendUp, setBackendUp] = useState<boolean | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const { activeProfileId } = useProfile();
+
+  useKeyboardShortcuts({
+    onAddJob: () => { if (activeProfileId) setShowAddModal(true); },
+    onShowHelp: () => setShowHelp((v) => !v),
+  });
 
   useEffect(() => {
     void api.ping().then(setBackendUp);
@@ -60,13 +72,34 @@ export default function AppShell() {
           ))}
         </nav>
 
+        {/* Add Job button */}
+        <div className="px-3 pb-2">
+          <button
+            onClick={() => setShowAddModal(true)}
+            disabled={!activeProfileId}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-md bg-brand hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+          >
+            <span className="text-base leading-none">+</span> Add Job
+            <kbd className="ml-auto text-xs opacity-60 font-mono">N</kbd>
+          </button>
+        </div>
+
         {/* Profile switcher */}
         <div className="px-3 pb-2">
           <ProfileSwitcher />
         </div>
 
-        {/* Backend status */}
+        {/* Backend status + help */}
         <div className="px-4 py-3 border-t border-gray-800 flex items-center gap-2">
+          <button
+            onClick={() => setShowHelp(true)}
+            className="ml-auto text-gray-600 hover:text-gray-400 text-xs transition-colors"
+            aria-label="Keyboard shortcuts"
+          >
+            ?
+          </button>
+        </div>
+        <div className="px-4 pb-3 flex items-center gap-2">
           <span
             className={`w-2 h-2 rounded-full flex-shrink-0 ${
               backendUp === null ? 'bg-gray-600' :
@@ -83,6 +116,9 @@ export default function AppShell() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Outlet />
       </div>
+
+      {showAddModal && <AddJobModal onClose={() => setShowAddModal(false)} />}
+      {showHelp && <KeyboardShortcutsHelp onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

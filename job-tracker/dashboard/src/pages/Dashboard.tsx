@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useProfile } from '../hooks/useProfile';
+import { useProfileStore } from '../store/profileStore';
 import { useJobs } from '../hooks/useJobs';
 import { useAnalyticsSummary } from '../hooks/useAnalytics';
 import KanbanBoard from '../components/KanbanBoard';
@@ -19,17 +20,52 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 const ACTIVE_STATUSES: Status[] = ['applied', 'screening', 'interview'];
 
 export default function Dashboard() {
-  const { activeProfile, activeProfileId } = useProfile();
+  const { activeProfile, activeProfileId, profiles } = useProfile();
+  const isLoading = useProfileStore((s) => s.isLoading);
   const { data: jobs = [], isPending } = useJobs(activeProfileId);
   const { data: summary } = useAnalyticsSummary(activeProfileId);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
   if (!activeProfileId) {
+    if (isLoading) {
+      return <div className="flex-1" />;
+    }
+
+    if (profiles.length === 0) {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="max-w-sm text-center">
+            <div className="w-10 h-10 rounded-full bg-brand/20 flex items-center justify-center mx-auto mb-4">
+              <span className="w-2.5 h-2.5 rounded-full bg-brand shadow-[0_0_8px_#6366f1]" />
+            </div>
+            <h2 className="text-lg font-semibold text-white mb-2">Welcome to JobTrack</h2>
+            <p className="text-sm text-gray-400 mb-6">
+              Track every application in one place. Start by creating a profile for your job search.
+            </p>
+            <div className="text-left space-y-4">
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand text-white text-xs flex items-center justify-center font-bold mt-0.5">1</span>
+                <p className="text-sm text-gray-300">
+                  Click <span className="text-white font-medium">No profile ▼</span> in the sidebar to create your first profile.
+                </p>
+              </div>
+              <div className="flex items-start gap-3 opacity-40">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-700 text-gray-400 text-xs flex items-center justify-center font-bold mt-0.5">2</span>
+                <p className="text-sm text-gray-500">
+                  Add jobs via the Chrome extension or the <span className="font-medium">Add Job</span> button.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-400 mb-2">No profile selected</p>
-          <p className="text-sm text-gray-600">Create a profile using the switcher in the sidebar.</p>
+          <p className="text-sm text-gray-600">Select a profile using the switcher in the sidebar.</p>
         </div>
       </div>
     );

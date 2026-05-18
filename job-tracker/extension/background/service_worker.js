@@ -21,9 +21,14 @@ async function handleMessage(message) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message.data),
       });
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        return { duplicate: true, existing: body.detail ?? {} };
+      }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || `HTTP ${res.status}`);
+        const detail = body.detail;
+        throw new Error(typeof detail === 'string' ? detail : `HTTP ${res.status}`);
       }
       return res.json();
     }

@@ -157,7 +157,15 @@ async function saveJob() {
   };
 
   try {
-    await sendToBackground({ type: 'SAVE_JOB', data: payload });
+    const result = await sendToBackground({ type: 'SAVE_JOB', data: payload });
+
+    if (result?.duplicate) {
+      const { company, title } = result.existing;
+      setHint('warn', `Already saved: "${title}" at ${company}. Open the dashboard to view it.`);
+      btn.disabled = false;
+      updateSaveButton();
+      return;
+    }
 
     const profile = profiles.find((p) => p.id === activeProfileId);
     btn.textContent = 'Saved! ✓';

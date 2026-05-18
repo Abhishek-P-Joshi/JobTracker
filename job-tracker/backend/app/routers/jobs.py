@@ -86,6 +86,14 @@ def create_job(data: JobCreate, db: Session = Depends(get_db)):
     if data.work_type not in VALID_WORK_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid work_type. Choose from: {', '.join(sorted(VALID_WORK_TYPES))}")
 
+    if data.url:
+        existing = db.query(Job).filter(Job.profile_id == data.profile_id, Job.url == data.url).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail={"message": "duplicate_url", "job_id": existing.id, "company": existing.company, "title": existing.title},
+            )
+
     job = Job(**data.model_dump())
     db.add(job)
     db.flush()
