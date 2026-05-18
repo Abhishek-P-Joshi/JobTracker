@@ -89,6 +89,8 @@ def create_job(data: JobCreate, db: Session = Depends(get_db)):
     if data.url:
         existing = db.query(Job).filter(Job.profile_id == data.profile_id, Job.url == data.url).first()
         if existing:
+            # Intentional: detail is a dict here (not a string like other errors)
+            # so the client can surface the conflicting job's identity.
             raise HTTPException(
                 status_code=409,
                 detail={"message": "duplicate_url", "job_id": existing.id, "company": existing.company, "title": existing.title},
@@ -127,6 +129,22 @@ def update_job(job_id: int, data: JobUpdate, db: Session = Depends(get_db)):
     old_status = job.status
     for field, value in update_data.items():
         setattr(job, field, value)
+
+    if "url" in update_data and update_data["url"]:
+        dup = (
+            db.query(Job)
+            .filter(
+                Job.profile_id == job.profile_id,
+                Job.url == update_data["url"],
+                Job.id != job_id,
+            )
+            .first()
+        )
+        if dup:
+            raise HTTPException(
+                status_code=409,
+                detail={"message": "duplicate_url", "job_id": dup.id, "company": dup.company, "title": dup.title},
+            )
 
     if "status" in update_data and update_data["status"] != old_status:
         _write_status_history(db, job.id, old_status, update_data["status"])

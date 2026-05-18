@@ -23,6 +23,7 @@ export default function AppShell() {
   useKeyboardShortcuts({
     onAddJob: () => { if (activeProfileId) setShowAddModal(true); },
     onShowHelp: () => setShowHelp((v) => !v),
+    disabled: showAddModal || showHelp,
   });
 
   useEffect(() => {

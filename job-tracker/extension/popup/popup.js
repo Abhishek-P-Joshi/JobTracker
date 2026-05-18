@@ -160,7 +160,9 @@ async function saveJob() {
     const result = await sendToBackground({ type: 'SAVE_JOB', data: payload });
 
     if (result?.duplicate) {
-      const { company, title } = result.existing;
+      btn.classList.remove('btn--success');
+      const company = result.existing?.company ?? 'unknown company';
+      const title   = result.existing?.title   ?? 'this job';
       setHint('warn', `Already saved: "${title}" at ${company}. Open the dashboard to view it.`);
       btn.disabled = false;
       updateSaveButton();

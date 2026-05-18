@@ -38,20 +38,23 @@ export default function AddJobModal({ onClose }: Props) {
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  const buildPayload = (overrideUrl?: string | null): CreateJobPayload => ({
-    profile_id: activeProfileId!,
-    company: company.trim(),
-    title: title.trim(),
-    status,
-    work_type: workType,
-    location: location.trim() || null,
-    url: overrideUrl !== undefined ? overrideUrl : (url.trim() || null),
-    applied_date: appliedDate || null,
-    salary_min: salaryMin ? Number(salaryMin) : null,
-    salary_max: salaryMax ? Number(salaryMax) : null,
-    currency,
-    notes: notes.trim() || null,
-  });
+  const buildPayload = (overrideUrl?: string | null): CreateJobPayload => {
+    if (!activeProfileId) throw new Error('No active profile');
+    return {
+      profile_id: activeProfileId,
+      company: company.trim(),
+      title: title.trim(),
+      status,
+      work_type: workType,
+      location: location.trim() || null,
+      url: overrideUrl !== undefined ? overrideUrl : (url.trim() || null),
+      applied_date: appliedDate || null,
+      salary_min: salaryMin ? Number(salaryMin) : null,
+      salary_max: salaryMax ? Number(salaryMax) : null,
+      currency,
+      notes: notes.trim() || null,
+    };
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +78,7 @@ export default function AddJobModal({ onClose }: Props) {
   const handleSaveWithoutUrl = async () => {
     if (!activeProfileId) return;
     setDuplicateInfo(null);
+    setError('');
     try {
       await createJob.mutateAsync(buildPayload(null));
       onClose();
@@ -85,18 +89,22 @@ export default function AddJobModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" onClick={onClose} />
       <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-job-title"
         onSubmit={handleSubmit}
         className="relative card w-[480px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
       >
-        <h2 className="text-base font-semibold text-white mb-4">Add Job</h2>
+        <h2 id="add-job-title" className="text-base font-semibold text-white mb-4">Add Job</h2>
 
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">Company *</label>
+              <label htmlFor="job-company" className="text-xs text-gray-400 mb-1 block">Company *</label>
               <input
+                id="job-company"
                 autoFocus
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
@@ -106,8 +114,9 @@ export default function AddJobModal({ onClose }: Props) {
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">Title *</label>
+              <label htmlFor="job-title" className="text-xs text-gray-400 mb-1 block">Title *</label>
               <input
+                id="job-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Software Engineer"
@@ -119,14 +128,24 @@ export default function AddJobModal({ onClose }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">Status</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value as Status)} className="select">
+              <label htmlFor="job-status" className="text-xs text-gray-400 mb-1 block">Status</label>
+              <select
+                id="job-status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as Status)}
+                className="select"
+              >
                 {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">Work Type</label>
-              <select value={workType} onChange={(e) => setWorkType(e.target.value as WorkType)} className="select">
+              <label htmlFor="job-work-type" className="text-xs text-gray-400 mb-1 block">Work Type</label>
+              <select
+                id="job-work-type"
+                value={workType}
+                onChange={(e) => setWorkType(e.target.value as WorkType)}
+                className="select"
+              >
                 {(['remote', 'hybrid', 'onsite', 'unknown'] as WorkType[]).map((w) => (
                   <option key={w} value={w}>{WORK_TYPE_LABELS[w]}</option>
                 ))}
@@ -135,8 +154,9 @@ export default function AddJobModal({ onClose }: Props) {
           </div>
 
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">Location</label>
+            <label htmlFor="job-location" className="text-xs text-gray-400 mb-1 block">Location</label>
             <input
+              id="job-location"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Bengaluru, India"
@@ -145,8 +165,9 @@ export default function AddJobModal({ onClose }: Props) {
           </div>
 
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">Job URL</label>
+            <label htmlFor="job-url" className="text-xs text-gray-400 mb-1 block">Job URL</label>
             <input
+              id="job-url"
               value={url}
               onChange={(e) => { setUrl(e.target.value); setDuplicateInfo(null); }}
               placeholder="https://…"
@@ -155,8 +176,9 @@ export default function AddJobModal({ onClose }: Props) {
           </div>
 
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">Applied Date</label>
+            <label htmlFor="job-applied-date" className="text-xs text-gray-400 mb-1 block">Applied Date</label>
             <input
+              id="job-applied-date"
               type="date"
               value={appliedDate}
               onChange={(e) => setAppliedDate(e.target.value)}
@@ -165,13 +187,14 @@ export default function AddJobModal({ onClose }: Props) {
           </div>
 
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">Salary</label>
-            <div className="flex gap-2">
+            <p id="job-salary-label" className="text-xs text-gray-400 mb-1">Salary</p>
+            <div role="group" aria-labelledby="job-salary-label" className="flex gap-2">
               <input
                 type="number"
                 value={salaryMin}
                 onChange={(e) => setSalaryMin(e.target.value)}
                 placeholder="Min"
+                aria-label="Minimum salary"
                 className="input"
               />
               <input
@@ -179,17 +202,24 @@ export default function AddJobModal({ onClose }: Props) {
                 value={salaryMax}
                 onChange={(e) => setSalaryMax(e.target.value)}
                 placeholder="Max"
+                aria-label="Maximum salary"
                 className="input"
               />
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="select w-20 flex-shrink-0">
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                aria-label="Currency"
+                className="select w-20 flex-shrink-0"
+              >
                 {['INR', 'USD', 'CAD', 'GBP', 'EUR', 'SGD'].map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           </div>
 
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">Notes</label>
+            <label htmlFor="job-notes" className="text-xs text-gray-400 mb-1 block">Notes</label>
             <textarea
+              id="job-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}

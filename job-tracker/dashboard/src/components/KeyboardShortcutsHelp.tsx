@@ -11,7 +11,10 @@ const SHORTCUTS = [
 export default function KeyboardShortcutsHelp({ onClose }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); onClose(); }
+      if (e.key === 'Escape') { onClose(); return; }
+      const tag = (e.target as HTMLElement).tagName.toLowerCase();
+      if (['input', 'textarea', 'select'].includes(tag)) return;
+      if (e.key === '?') { e.preventDefault(); onClose(); }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
@@ -19,9 +22,14 @@ export default function KeyboardShortcutsHelp({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative card w-72 p-5 shadow-2xl">
-        <h2 className="text-sm font-semibold text-white mb-3">Keyboard Shortcuts</h2>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shortcuts-title"
+        className="relative card w-72 p-5 shadow-2xl"
+      >
+        <h2 id="shortcuts-title" className="text-sm font-semibold text-white mb-3">Keyboard Shortcuts</h2>
         <div className="space-y-2.5">
           {SHORTCUTS.map(({ key, description }) => (
             <div key={key} className="flex items-center justify-between">

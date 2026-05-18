@@ -22,8 +22,8 @@ async function handleMessage(message) {
         body: JSON.stringify(message.data),
       });
       if (res.status === 409) {
-        const body = await res.json().catch(() => ({}));
-        return { duplicate: true, existing: body.detail ?? {} };
+        const body = await res.json(); // let parse failure propagate as a real error
+        return { duplicate: true, existing: body.detail };
       }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

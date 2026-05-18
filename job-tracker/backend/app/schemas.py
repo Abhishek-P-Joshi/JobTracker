@@ -1,6 +1,20 @@
 from datetime import datetime, date
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from urllib.parse import urlparse, urlunparse
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+def _normalise_url(v: object) -> object:
+    if not isinstance(v, str):
+        return v
+    stripped = v.strip()
+    if not stripped:
+        return None
+    try:
+        parsed = urlparse(stripped)
+        return urlunparse(parsed._replace(scheme=parsed.scheme.lower(), netloc=parsed.netloc.lower()))
+    except Exception:
+        return stripped
 
 
 # ── Profiles ──────────────────────────────────────────────────────────────────
@@ -57,6 +71,11 @@ class JobCreate(BaseModel):
     notes: Optional[str] = Field(None, max_length=10_000)
     job_description: Optional[str] = Field(None, max_length=50_000)
 
+    @field_validator("url", mode="before")
+    @classmethod
+    def normalise_url(cls, v: object) -> object:
+        return _normalise_url(v)
+
     @model_validator(mode="after")
     def check_salary_range(self) -> "JobCreate":
         if self.salary_min is not None and self.salary_max is not None:
@@ -82,6 +101,11 @@ class JobUpdate(BaseModel):
     # Consider a sentinel value or a dedicated PATCH field-clear endpoint.
     notes: Optional[str] = Field(None, max_length=10_000)
     job_description: Optional[str] = Field(None, max_length=50_000)
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def normalise_url(cls, v: object) -> object:
+        return _normalise_url(v)
 
     @model_validator(mode="after")
     def check_salary_range(self) -> "JobUpdate":

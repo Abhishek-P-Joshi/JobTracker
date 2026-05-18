@@ -1,5 +1,5 @@
 from datetime import datetime, date, UTC
-from sqlalchemy import Integer, String, Text, Date, DateTime, ForeignKey, event
+from sqlalchemy import Integer, String, Text, Date, DateTime, ForeignKey, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
@@ -24,6 +24,12 @@ class Profile(Base):
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        # Belt-and-suspenders uniqueness; the app-level 409 is the user-facing guard.
+        # SQL NULL semantics (NULL != NULL) mean multiple null-URL jobs are allowed.
+        # Requires DB recreation or a migration to apply to an existing database.
+        UniqueConstraint("profile_id", "url", name="uq_job_profile_url"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     profile_id: Mapped[int] = mapped_column(Integer, ForeignKey("profiles.id"), nullable=False)

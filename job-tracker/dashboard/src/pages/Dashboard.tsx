@@ -5,6 +5,7 @@ import { useJobs } from '../hooks/useJobs';
 import { useAnalyticsSummary } from '../hooks/useAnalytics';
 import KanbanBoard from '../components/KanbanBoard';
 import JobDetailPanel from '../components/JobDetailPanel';
+import { STATUS_ORDER } from '../types';
 import type { Job, Status } from '../types';
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -25,6 +26,15 @@ export default function Dashboard() {
   const { data: jobs = [], isPending } = useJobs(activeProfileId);
   const { data: summary } = useAnalyticsSummary(activeProfileId);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+
+  // Computed before early returns to satisfy Rules of Hooks (useMemo must not be conditional)
+  const activePipeline = ACTIVE_STATUSES.reduce(
+    (sum, s) => sum + (summary?.by_status[s] ?? 0), 0
+  );
+  const thisWeek = useMemo(() => {
+    const now = Date.now();
+    return jobs.filter((j) => now - new Date(j.created_at).getTime() < 7 * 86_400_000).length;
+  }, [jobs]);
 
   if (!activeProfileId) {
     if (isLoading) {
@@ -71,14 +81,6 @@ export default function Dashboard() {
     );
   }
 
-  const activePipeline = ACTIVE_STATUSES.reduce(
-    (sum, s) => sum + (summary?.by_status[s] ?? 0), 0
-  );
-  const thisWeek = useMemo(() => {
-    const now = Date.now();
-    return jobs.filter((j) => now - new Date(j.created_at).getTime() < 7 * 86_400_000).length;
-  }, [jobs]);
-
   return (
     <div className="flex flex-1 overflow-hidden">
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -106,7 +108,7 @@ export default function Dashboard() {
         <div className="flex-1 overflow-hidden pt-2">
           {isPending ? (
             <div className="px-6 flex gap-3">
-              {Array.from({ length: 7 }).map((_, i) => (
+              {Array.from({ length: STATUS_ORDER.length }).map((_, i) => (
                 <div key={i} className="w-64 flex-shrink-0">
                   <div className="skeleton h-5 w-24 mb-2" />
                   <div className="space-y-2">
