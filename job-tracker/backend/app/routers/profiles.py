@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import Profile
+from ..models import Profile, Job
 from ..schemas import ProfileCreate, ProfileUpdate, ProfileOut
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
@@ -48,7 +48,8 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
     profile = db.query(Profile).filter(Profile.id == profile_id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
-    if profile.jobs:
+    has_jobs = db.query(Job.id).filter(Job.profile_id == profile_id).limit(1).first() is not None
+    if has_jobs:
         raise HTTPException(
             status_code=400,
             detail="Cannot delete a profile that has jobs. Move or delete the jobs first.",

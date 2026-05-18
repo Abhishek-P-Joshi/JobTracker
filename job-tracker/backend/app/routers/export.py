@@ -1,13 +1,13 @@
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import Job, Profile
+from ..models import Job, Profile, StatusHistory
 from ..schemas import ImportRequest, JobOut
 
 router = APIRouter(tags=["export"])
@@ -17,6 +17,13 @@ CSV_FIELDS = [
     "salary_min", "salary_max", "currency", "status", "source",
     "applied_date", "notes", "created_at", "updated_at",
 ]
+
+VALID_STATUSES = {"wishlist", "applied", "screening", "interview", "offer", "rejected", "ghosted"}
+VALID_WORK_TYPES = {"remote", "hybrid", "onsite", "unknown"}
+
+
+def _utc_stamp() -> str:
+    return datetime.now(UTC).strftime("%Y%m%d")
 
 
 @router.get("/export/csv")
@@ -34,11 +41,13 @@ def export_csv(profile_id: Optional[int] = Query(None), db: Session = Depends(ge
         writer.writerow(row)
 
     output.seek(0)
-    filename = f"jobs_profile{profile_id}_{datetime.utcnow().strftime('%Y%m%d')}.csv" if profile_id else f"jobs_all_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    # M5: quote filename in Content-Disposition per RFC 6266.
+    suffix = f"profile{profile_id}" if profile_id else "all"
+    filename = f"jobs_{suffix}_{_utc_stamp()}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -52,11 +61,12 @@ def export_json(profile_id: Optional[int] = Query(None), db: Session = Depends(g
     data = [JobOut.model_validate(job).model_dump(mode="json") for job in jobs]
     payload = json.dumps(data, default=str, indent=2)
 
-    filename = f"jobs_profile{profile_id}_{datetime.utcnow().strftime('%Y%m%d')}.json" if profile_id else f"jobs_all_{datetime.utcnow().strftime('%Y%m%d')}.json"
+    suffix = f"profile{profile_id}" if profile_id else "all"
+    filename = f"jobs_{suffix}_{_utc_stamp()}.json"
     return StreamingResponse(
         iter([payload]),
         media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -66,11 +76,29 @@ def import_json(data: ImportRequest, db: Session = Depends(get_db)):
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
 
+    # C3: validate each job's status and work_type, and write status_history so
+    # imported jobs appear correctly in the timeline and analytics views.
     created = []
-    for job_data in data.jobs:
-        job = Job(**job_data.model_dump())
-        job.profile_id = data.profile_id
+    for idx, job_data in enumerate(data.jobs):
+        d = job_data.model_dump()
+        d["profile_id"] = data.profile_id  # override with the target profile
+
+        if d["status"] not in VALID_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Job {idx}: invalid status '{d['status']}'. Choose from: {', '.join(sorted(VALID_STATUSES))}",
+            )
+        if d["work_type"] not in VALID_WORK_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Job {idx}: invalid work_type '{d['work_type']}'. Choose from: {', '.join(sorted(VALID_WORK_TYPES))}",
+            )
+
+        job = Job(**d)
         db.add(job)
+        db.flush()
+        history = StatusHistory(job_id=job.id, old_status=None, new_status=job.status)
+        db.add(history)
         created.append(job)
 
     db.commit()

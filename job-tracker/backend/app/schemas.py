@@ -1,18 +1,18 @@
 from datetime import datetime, date
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ── Profiles ──────────────────────────────────────────────────────────────────
 
 class ProfileCreate(BaseModel):
-    name: str
-    color: str = "#6366f1"
+    name: str = Field(..., max_length=100)
+    color: str = Field("#6366f1", pattern=r'^#[0-9a-fA-F]{6}$')
 
 
 class ProfileUpdate(BaseModel):
-    name: Optional[str] = None
-    color: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=100)
+    color: Optional[str] = Field(None, pattern=r'^#[0-9a-fA-F]{6}$')
 
 
 class ProfileOut(BaseModel):
@@ -31,45 +31,64 @@ class StatusHistoryOut(BaseModel):
 
     id: int
     job_id: int
-    old_status: Optional[str]
+    # TODO (low): add explicit `= None` defaults once Pydantic v2 Optional
+    # inference is confirmed stable across all deployment targets.
+    old_status: Optional[str] = None
     new_status: str
     changed_at: datetime
-    note: Optional[str]
+    note: Optional[str] = None
 
 
 # ── Jobs ───────────────────────────────────────────────────────────────────────
 
 class JobCreate(BaseModel):
     profile_id: int
-    company: str
-    title: str
-    url: Optional[str] = None
-    location: Optional[str] = None
+    company: str = Field(..., max_length=200)
+    title: str = Field(..., max_length=200)
+    url: Optional[str] = Field(None, max_length=2048)
+    location: Optional[str] = Field(None, max_length=200)
     work_type: str = "unknown"
-    salary_min: Optional[int] = None
-    salary_max: Optional[int] = None
+    salary_min: Optional[int] = Field(None, ge=0)
+    salary_max: Optional[int] = Field(None, ge=0)
     currency: str = "INR"
     status: str = "wishlist"
-    source: Optional[str] = None
+    source: Optional[str] = Field(None, max_length=100)
     applied_date: Optional[date] = None
-    notes: Optional[str] = None
-    job_description: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=10_000)
+    job_description: Optional[str] = Field(None, max_length=50_000)
+
+    @model_validator(mode="after")
+    def check_salary_range(self) -> "JobCreate":
+        if self.salary_min is not None and self.salary_max is not None:
+            if self.salary_min > self.salary_max:
+                raise ValueError("salary_min must not exceed salary_max")
+        return self
 
 
 class JobUpdate(BaseModel):
-    company: Optional[str] = None
-    title: Optional[str] = None
-    url: Optional[str] = None
-    location: Optional[str] = None
+    company: Optional[str] = Field(None, max_length=200)
+    title: Optional[str] = Field(None, max_length=200)
+    url: Optional[str] = Field(None, max_length=2048)
+    location: Optional[str] = Field(None, max_length=200)
     work_type: Optional[str] = None
-    salary_min: Optional[int] = None
-    salary_max: Optional[int] = None
+    salary_min: Optional[int] = Field(None, ge=0)
+    salary_max: Optional[int] = Field(None, ge=0)
     currency: Optional[str] = None
     status: Optional[str] = None
-    source: Optional[str] = None
+    source: Optional[str] = Field(None, max_length=100)
     applied_date: Optional[date] = None
-    notes: Optional[str] = None
-    job_description: Optional[str] = None
+    # TODO (medium): JobUpdate cannot distinguish "unset" from "explicitly null"
+    # for nullable fields. A client cannot clear notes/url via this schema.
+    # Consider a sentinel value or a dedicated PATCH field-clear endpoint.
+    notes: Optional[str] = Field(None, max_length=10_000)
+    job_description: Optional[str] = Field(None, max_length=50_000)
+
+    @model_validator(mode="after")
+    def check_salary_range(self) -> "JobUpdate":
+        if self.salary_min is not None and self.salary_max is not None:
+            if self.salary_min > self.salary_max:
+                raise ValueError("salary_min must not exceed salary_max")
+        return self
 
 
 class JobOut(BaseModel):
@@ -92,6 +111,8 @@ class JobOut(BaseModel):
     job_description: Optional[str]
     created_at: datetime
     updated_at: datetime
+    # TODO (low): add selectinload(Job.status_history) to list_jobs and get_job
+    # queries in routers/jobs.py to eliminate N+1 lazy loads.
     status_history: list[StatusHistoryOut] = []
 
 
@@ -119,10 +140,10 @@ class LocationStat(BaseModel):
 
 
 class SalaryStat(BaseModel):
-    min_salary_min: Optional[float]
-    max_salary_max: Optional[float]
-    avg_salary_min: Optional[float]
-    avg_salary_max: Optional[float]
+    min_salary_min: Optional[float] = None
+    max_salary_max: Optional[float] = None
+    avg_salary_min: Optional[float] = None
+    avg_salary_max: Optional[float] = None
 
 
 class SourceStat(BaseModel):

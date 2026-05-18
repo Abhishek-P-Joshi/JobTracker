@@ -16,8 +16,9 @@ class Base(DeclarativeBase):
 
 
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    with SessionLocal() as db:
+        try:
+            yield db
+        except Exception:
+            db.rollback()
+            raise

@@ -10,6 +10,8 @@ app = FastAPI(title="JobTrack API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:5174"],
+    # TODO (low): pin to your specific extension ID once stable, e.g.
+    # allow_origin_regex=r"chrome-extension://abcdefghijklmnopabcdefghijklmnop"
     allow_origin_regex=r"chrome-extension://.*",
     allow_credentials=True,
     allow_methods=["*"],

@@ -1,7 +1,12 @@
-from datetime import datetime, date
+from datetime import datetime, date, UTC
 from sqlalchemy import Integer, String, Text, Date, DateTime, ForeignKey, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
+
+
+def utc_now() -> datetime:
+    """Return current UTC time as a naive datetime (avoids deprecated utcnow)."""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class Profile(Base):
@@ -10,9 +15,11 @@ class Profile(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     color: Mapped[str] = mapped_column(String, nullable=False, default="#6366f1")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
-    jobs: Mapped[list["Job"]] = relationship("Job", back_populates="profile")
+    jobs: Mapped[list["Job"]] = relationship(
+        "Job", back_populates="profile", cascade="all, delete-orphan"
+    )
 
 
 class Job(Base):
@@ -33,8 +40,8 @@ class Job(Base):
     applied_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     job_description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     profile: Mapped["Profile"] = relationship("Profile", back_populates="jobs")
     status_history: Mapped[list["StatusHistory"]] = relationship(
@@ -49,12 +56,14 @@ class StatusHistory(Base):
     job_id: Mapped[int] = mapped_column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
     old_status: Mapped[str | None] = mapped_column(String, nullable=True)
     new_status: Mapped[str] = mapped_column(String, nullable=False)
-    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     job: Mapped["Job"] = relationship("Job", back_populates="status_history")
 
 
+# TODO (low): EmailMatch is scaffolded for future email integration (Phase 5)
+# but has no router or schema yet — implement or remove when Phase 5 begins.
 class EmailMatch(Base):
     __tablename__ = "email_matches"
 
@@ -62,10 +71,10 @@ class EmailMatch(Base):
     job_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)
     subject: Mapped[str | None] = mapped_column(String, nullable=True)
     sender: Mapped[str | None] = mapped_column(String, nullable=True)
-    matched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    matched_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     action: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 @event.listens_for(Job, "before_update")
 def update_updated_at(mapper, connection, target):
-    target.updated_at = datetime.utcnow()
+    target.updated_at = utc_now()

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
@@ -13,44 +13,51 @@ ALL_STATUSES = ["wishlist", "applied", "screening", "interview", "offer", "rejec
 RESPONDED_STATUSES = {"screening", "interview", "offer", "rejected"}
 
 
-def _base_query(db: Session, profile_id: Optional[int]):
-    q = db.query(Job)
-    if profile_id is not None:
-        q = q.filter(Job.profile_id == profile_id)
-    return q
-
-
 @router.get("/summary", response_model=AnalyticsSummary)
 def get_summary(profile_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
-    jobs = _base_query(db, profile_id).all()
-    total = len(jobs)
+    # M1: use SQL GROUP BY instead of loading all Job objects into Python.
+    q = db.query(Job.status, func.count(Job.id).label("count"))
+    if profile_id is not None:
+        q = q.filter(Job.profile_id == profile_id)
+    rows = q.group_by(Job.status).all()
+
     by_status = {s: 0 for s in ALL_STATUSES}
-    for job in jobs:
-        if job.status in by_status:
-            by_status[job.status] += 1
+    total = 0
+    for row in rows:
+        if row.status in by_status:
+            by_status[row.status] = row.count
+        total += row.count
 
     applied_total = sum(by_status.get(s, 0) for s in ["applied", "screening", "interview", "offer", "rejected"])
     responded = sum(by_status.get(s, 0) for s in RESPONDED_STATUSES)
     response_rate = round((responded / applied_total * 100), 1) if applied_total > 0 else 0.0
 
+    # TODO (low): return 404 when profile_id is provided but no such profile exists,
+    # to distinguish "profile not found" from "profile has no jobs".
     return AnalyticsSummary(total=total, by_status=by_status, response_rate=response_rate)
 
 
 @router.get("/timeline", response_model=list[TimelinePoint])
 def get_timeline(profile_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
-    now = datetime.utcnow()
+    # H1: use datetime.now(UTC) instead of deprecated datetime.utcnow().
+    # M2: fetch all applied_dates in one query and group in Python, not 12 serial COUNTs.
+    now = datetime.now(UTC).replace(tzinfo=None)
+    window_start = (now - timedelta(weeks=11)).replace(hour=0, minute=0, second=0, microsecond=0)
+    window_start -= timedelta(days=window_start.weekday())
+
+    q = db.query(Job.applied_date)
+    if profile_id is not None:
+        q = q.filter(Job.profile_id == profile_id)
+    q = q.filter(Job.applied_date >= window_start.date(), Job.applied_date.isnot(None))
+    applied_dates = [row.applied_date for row in q.all()]
+
     points = []
     for weeks_ago in range(11, -1, -1):
         week_start = (now - timedelta(weeks=weeks_ago)).replace(hour=0, minute=0, second=0, microsecond=0)
         week_start -= timedelta(days=week_start.weekday())
         week_end = week_start + timedelta(days=7)
-        q = _base_query(db, profile_id).filter(
-            Job.applied_date >= week_start.date(),
-            Job.applied_date < week_end.date(),
-        )
-        count = q.count()
-        label = week_start.strftime("%b %d")
-        points.append(TimelinePoint(week_label=label, count=count))
+        count = sum(1 for d in applied_dates if week_start.date() <= d < week_end.date())
+        points.append(TimelinePoint(week_label=week_start.strftime("%b %d"), count=count))
     return points
 
 
