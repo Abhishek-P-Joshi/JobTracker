@@ -13,7 +13,7 @@ import type {
   WorkTypePoint,
 } from '../types';
 
-const http = axios.create({ baseURL: 'http://localhost:8000' });
+const http = axios.create({ baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000' });
 
 export const api = {
   // ── Profiles ──────────────────────────────────────────────

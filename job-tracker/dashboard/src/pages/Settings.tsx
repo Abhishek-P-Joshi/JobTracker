@@ -8,8 +8,10 @@ function downloadBlob(blob: Blob, filename: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
 export default function Settings() {
@@ -48,17 +50,23 @@ export default function Settings() {
   const handleExportCsv = async () => {
     if (!activeProfileId) return;
     setExporting(true);
-    const blob = await api.exportCsv(activeProfileId);
-    downloadBlob(blob, `jobs-${activeProfileId}.csv`);
-    setExporting(false);
+    try {
+      const blob = await api.exportCsv(activeProfileId);
+      downloadBlob(blob, `jobs-${activeProfileId}.csv`);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleExportJson = async () => {
     if (!activeProfileId) return;
     setExporting(true);
-    const blob = await api.exportJson(activeProfileId);
-    downloadBlob(blob, `jobs-${activeProfileId}.json`);
-    setExporting(false);
+    try {
+      const blob = await api.exportJson(activeProfileId);
+      downloadBlob(blob, `jobs-${activeProfileId}.json`);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -23,7 +23,10 @@ export function useCreateJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateJobPayload) => api.createJob(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs'] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+      qc.invalidateQueries({ queryKey: ['analytics'] });
+    },
   });
 }
 
@@ -35,6 +38,7 @@ export function useUpdateJob() {
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ['jobs'] });
       qc.invalidateQueries({ queryKey: ['job', id] });
+      qc.invalidateQueries({ queryKey: ['analytics'] });
     },
   });
 }
@@ -43,7 +47,11 @@ export function useDeleteJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.deleteJob(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs'] }); },
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+      qc.invalidateQueries({ queryKey: ['analytics'] });
+      qc.removeQueries({ queryKey: ['job', id] });
+    },
   });
 }
 
@@ -52,6 +60,9 @@ export function useMoveJobs() {
   return useMutation({
     mutationFn: ({ jobIds, targetProfileId }: { jobIds: number[]; targetProfileId: number }) =>
       api.moveJobs(jobIds, targetProfileId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs'] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+      qc.invalidateQueries({ queryKey: ['analytics'] });
+    },
   });
 }

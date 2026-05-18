@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useProfile } from '../hooks/useProfile';
 import { useJobs } from '../hooks/useJobs';
 import { useAnalyticsSummary } from '../hooks/useAnalytics';
@@ -38,10 +38,10 @@ export default function Dashboard() {
   const activePipeline = ACTIVE_STATUSES.reduce(
     (sum, s) => sum + (summary?.by_status[s] ?? 0), 0
   );
-  const thisWeek = jobs.filter((j) => {
-    const created = new Date(j.created_at);
-    return Date.now() - created.getTime() < 7 * 86_400_000;
-  }).length;
+  const thisWeek = useMemo(() => {
+    const now = Date.now();
+    return jobs.filter((j) => now - new Date(j.created_at).getTime() < 7 * 86_400_000).length;
+  }, [jobs]);
 
   return (
     <div className="flex flex-1 overflow-hidden">

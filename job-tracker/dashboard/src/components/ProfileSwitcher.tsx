@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useProfileStore } from '../store/profileStore';
+import { useProfile } from '../hooks/useProfile';
 import { api } from '../api/client';
 
 export default function ProfileSwitcher() {
-  const { profiles, activeProfileId, setActiveProfileId, addProfile } =
-    useProfileStore();
-  const activeProfile = profiles.find((p) => p.id === activeProfileId);
+  const { profiles, activeProfileId, setActiveProfileId, activeProfile } = useProfile();
+  const addProfile = useProfileStore((s) => s.addProfile);
 
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);

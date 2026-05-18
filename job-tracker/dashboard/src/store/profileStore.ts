@@ -7,6 +7,7 @@ interface ProfileStore {
   profiles: Profile[];
   activeProfileId: number | null;
   isLoading: boolean;
+  error: string | null;
   setActiveProfileId: (id: number) => void;
   loadProfiles: () => Promise<void>;
   addProfile: (p: Profile) => void;
@@ -20,11 +21,12 @@ export const useProfileStore = create<ProfileStore>()(
       profiles: [],
       activeProfileId: null,
       isLoading: false,
+      error: null,
 
       setActiveProfileId: (id) => set({ activeProfileId: id }),
 
       loadProfiles: async () => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
         try {
           const profiles = await api.getProfiles();
           set({ profiles });
@@ -32,6 +34,8 @@ export const useProfileStore = create<ProfileStore>()(
           if (!profiles.find((p) => p.id === activeProfileId) && profiles.length > 0) {
             set({ activeProfileId: profiles[0].id });
           }
+        } catch (err) {
+          set({ error: err instanceof Error ? err.message : 'Failed to load profiles' });
         } finally {
           set({ isLoading: false });
         }

@@ -4,18 +4,18 @@ import ProfileSwitcher from '../ProfileSwitcher';
 import { api } from '../../api/client';
 
 const NAV = [
-  { to: '/',             label: 'Dashboard',    abbr: 'DB' },
-  { to: '/applications', label: 'Applications', abbr: 'AP' },
-  { to: '/insights',     label: 'Insights',     abbr: 'IN' },
-  { to: '/settings',     label: 'Settings',     abbr: 'ST' },
+  { to: '/',             label: 'Dashboard' },
+  { to: '/applications', label: 'Applications' },
+  { to: '/insights',     label: 'Insights' },
+  { to: '/settings',     label: 'Settings' },
 ];
 
 export default function AppShell() {
   const [backendUp, setBackendUp] = useState<boolean | null>(null);
 
   useEffect(() => {
-    api.ping().then(setBackendUp);
-    const timer = setInterval(() => api.ping().then(setBackendUp), 30_000);
+    void api.ping().then(setBackendUp);
+    const timer = setInterval(() => { void api.ping().then(setBackendUp); }, 30_000);
     return () => clearInterval(timer);
   }, []);
 

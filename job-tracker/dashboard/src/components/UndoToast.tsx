@@ -37,6 +37,7 @@ export default function UndoToast({ message, onUndo, onDismiss, duration = 8000 
           </button>
           <button
             onClick={onDismiss}
+            aria-label="Dismiss"
             className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
             ✕

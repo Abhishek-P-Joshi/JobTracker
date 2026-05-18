@@ -30,15 +30,15 @@ export default function Applications() {
   const toggleCheck = (id: number) =>
     setCheckedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
 
   const toggleAll = () =>
     setCheckedIds(checkedIds.size === jobs.length ? new Set() : new Set(jobs.map((j) => j.id)));
 
-  const handleMoved = (to: number, from: number) => {
-    setUndoState({ jobIds: Array.from(checkedIds), from, to });
+  const handleMoved = (to: number, from: number, movedJobIds: number[]) => {
+    setUndoState({ jobIds: movedJobIds, from, to });
     setCheckedIds(new Set());
   };
 

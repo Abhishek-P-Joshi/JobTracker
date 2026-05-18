@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useJob, useUpdateJob, useDeleteJob } from '../hooks/useJobs';
 import type { Job, Status, WorkType } from '../types';
 import { STATUS_ORDER, STATUS_LABELS, STATUS_COLORS, WORK_TYPE_LABELS } from '../types';
@@ -24,9 +24,13 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
 
   const [form, setForm] = useState<Partial<Job>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const prevJobIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (job) setForm(job);
+    if (job && job.id !== prevJobIdRef.current) {
+      prevJobIdRef.current = job.id;
+      setForm(job);
+    }
   }, [job]);
 
   useEffect(() => {
@@ -49,6 +53,8 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
   const saveNotes = () => {
     if (job && form.notes !== job.notes) updateJob.mutate({ id: job.id, data: { notes: form.notes } });
   };
+
+  const safeUrl = /^https?:\/\//i.test(job?.url ?? '') ? job?.url : null;
 
   if (isPending || !job) {
     return (
@@ -82,7 +88,7 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
               className="bg-transparent text-base font-semibold text-white w-full outline-none hover:bg-gray-800 focus:bg-gray-800 rounded px-1 -mx-1 mt-0.5"
             />
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-xl leading-none flex-shrink-0">×</button>
+          <button onClick={onClose} aria-label="Close" className="text-gray-500 hover:text-gray-300 text-xl leading-none flex-shrink-0">×</button>
         </div>
 
         {/* Body */}
@@ -166,12 +172,12 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
           </Field>
 
           {/* URL */}
-          {job.url && (
+          {safeUrl && (
             <Field label="Listing">
               <a
-                href={job.url}
+                href={safeUrl}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="text-sm text-brand hover:underline truncate block"
               >
                 Open listing →

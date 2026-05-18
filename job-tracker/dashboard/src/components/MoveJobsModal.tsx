@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useProfileStore } from '../store/profileStore';
 import { useMoveJobs } from '../hooks/useJobs';
 
@@ -6,7 +6,7 @@ interface Props {
   jobIds: number[];
   currentProfileId: number;
   onClose: () => void;
-  onMoved: (targetProfileId: number, previousProfileId: number) => void;
+  onMoved: (targetProfileId: number, previousProfileId: number, movedJobIds: number[]) => void;
 }
 
 export default function MoveJobsModal({ jobIds, currentProfileId, onClose, onMoved }: Props) {
@@ -15,10 +15,16 @@ export default function MoveJobsModal({ jobIds, currentProfileId, onClose, onMov
   const [targetId, setTargetId] = useState<number>(targets[0]?.id ?? 0);
   const move = useMoveJobs();
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   const handleMove = async () => {
     if (!targetId) return;
     await move.mutateAsync({ jobIds, targetProfileId: targetId });
-    onMoved(targetId, currentProfileId);
+    onMoved(targetId, currentProfileId, jobIds);
     onClose();
   };
 

@@ -22,8 +22,8 @@ export default function TopLocations({ data }: Props) {
           cursor={{ fill: 'rgba(99,102,241,0.08)' }}
         />
         <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={20}>
-          {top8.map((_, i) => (
-            <Cell key={i} fill={`rgba(99,102,241,${1 - i * 0.1})`} />
+          {top8.map((entry, i) => (
+            <Cell key={entry.location} fill={`rgba(99,102,241,${1 - i * 0.1})`} />
           ))}
         </Bar>
       </BarChart>
