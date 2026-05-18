@@ -8,15 +8,14 @@ function scrapeGreenhouse() {
     : null;
 
   return {
-    title: get('h1.app-title') || get('h1'),
+    title: get('h1.app-title') || get('[data-qa="job-title"]') || get('#main h1'),
     company,
     location: get('.location') || get('[class*="location"]'),
     workTypeHint: null,
     description: get('#content') || get('.content'),
+    salaryRaw: get('.salary') || get('[data-qa="salary"]') || null,
     url: window.location.href,
     source: 'greenhouse',
-    salary_min: null,
-    salary_max: null,
-    currency: 'INR',
+    currency: 'USD',
   };
 }

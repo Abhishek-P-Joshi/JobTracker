@@ -1,26 +1,25 @@
 'use strict';
 
+const DASHBOARD_URL = 'http://localhost:5173';
+
 let profiles = [];
 let activeProfileId = null;
 
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-  // Restore saved profile choice
   const stored = await chrome.storage.local.get('activeProfileId');
   activeProfileId = stored.activeProfileId ?? null;
 
-  // Set today as default applied date
-  document.getElementById('applied_date').value = today();
+  // Use local date to avoid UTC-offset day-off bug (important for UTC+ timezones)
+  document.getElementById('applied_date').value = localDateString();
 
-  // Wire up listeners
   document.getElementById('save-btn').addEventListener('click', saveJob);
   document.getElementById('open-dashboard').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'http://localhost:5173' });
+    chrome.tabs.create({ url: DASHBOARD_URL }).catch(() => {});
   });
   document.getElementById('profile-select').addEventListener('change', onProfileChange);
 
-  // Fetch profiles, then scrape
   await loadProfiles();
   await scrapeCurrentTab();
 }
@@ -40,30 +39,39 @@ async function loadProfiles() {
 function renderProfileSelector() {
   const select = document.getElementById('profile-select');
 
+  // Clear existing options safely
+  while (select.firstChild) select.removeChild(select.firstChild);
+
   if (profiles.length === 0) {
-    select.innerHTML = '<option value="">No profiles</option>';
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No profiles';
+    select.appendChild(opt);
     document.getElementById('save-btn').disabled = true;
     return;
   }
 
-  // If saved ID is no longer valid, default to first profile
+  // If saved ID is no longer in the list, fall back to first profile
   if (!profiles.find((p) => p.id === activeProfileId)) {
     activeProfileId = profiles[0].id;
     chrome.storage.local.set({ activeProfileId });
   }
 
-  select.innerHTML = profiles
-    .map(
-      (p) =>
-        `<option value="${p.id}" ${p.id === activeProfileId ? 'selected' : ''}>${esc(p.name)}</option>`
-    )
-    .join('');
+  for (const p of profiles) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name; // textContent is XSS-safe; no escaping needed
+    opt.selected = p.id === activeProfileId;
+    select.appendChild(opt);
+  }
 
   updateSaveButton();
 }
 
 function onProfileChange(e) {
-  activeProfileId = parseInt(e.target.value, 10);
+  const parsed = parseInt(e.target.value, 10);
+  if (isNaN(parsed)) return; // guard against empty/invalid option
+  activeProfileId = parsed;
   chrome.storage.local.set({ activeProfileId });
   updateSaveButton();
 }
@@ -79,7 +87,8 @@ function updateSaveButton() {
 
 async function scrapeCurrentTab() {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    // lastFocusedWindow avoids returning the popup window itself
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (!tab?.id) return;
 
     const result = await chrome.tabs
@@ -156,9 +165,8 @@ async function saveJob() {
     setHint('success', `Saved to ${profile?.name ?? 'profile'}`);
 
     setTimeout(() => {
-      btn.disabled = false;
       btn.classList.remove('btn--success');
-      updateSaveButton();
+      updateSaveButton(); // updateSaveButton controls btn.disabled — don't set it separately
     }, 2000);
   } catch (e) {
     setHint('error', e.message || 'Failed to save. Is the backend running?');
@@ -199,18 +207,16 @@ function intOrNull(id) {
   return isNaN(v) ? null : v;
 }
 
-function today() {
-  return new Date().toISOString().split('T')[0];
+function localDateString() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 function sourceLabel(src) {
-  return { linkedin: 'LinkedIn', naukri: 'Naukri', indeed: 'Indeed', greenhouse: 'Greenhouse' }[src] ?? src;
-}
-
-function esc(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return (
+    { linkedin: 'LinkedIn', naukri: 'Naukri', indeed: 'Indeed', greenhouse: 'Greenhouse' }[src] ??
+    src
+  );
 }
