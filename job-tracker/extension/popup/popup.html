@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobTrack</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="shell">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        <span class="logo-text">JobTrack</span>
+      </div>
+      <div class="profile-wrapper">
+        <select id="profile-select" class="profile-select" aria-label="Active profile"></select>
+      </div>
+    </header>
+
+    <!-- Status hint -->
+    <div id="scrape-hint" class="hint hint--info" role="status">
+      Checking page…
+    </div>
+
+    <!-- Form -->
+    <form id="job-form" class="form" autocomplete="off" novalidate>
+
+      <div class="field">
+        <label for="company">Company <span class="req">*</span></label>
+        <input id="company" type="text" placeholder="e.g. Acme Corp" />
+      </div>
+
+      <div class="field">
+        <label for="title">Job Title <span class="req">*</span></label>
+        <input id="title" type="text" placeholder="e.g. Senior Engineer" />
+      </div>
+
+      <div class="field">
+        <label for="location">Location</label>
+        <input id="location" type="text" placeholder="e.g. Bengaluru / Remote" />
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label for="work_type">Work Type</label>
+          <select id="work_type">
+            <option value="unknown">Unknown</option>
+            <option value="remote">Remote</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="onsite">On-site</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="status">Status</label>
+          <select id="status">
+            <option value="wishlist">Wishlist</option>
+            <option value="applied">Applied</option>
+            <option value="screening">Screening</option>
+            <option value="interview">Interview</option>
+            <option value="offer">Offer</option>
+            <option value="rejected">Rejected</option>
+            <option value="ghosted">Ghosted</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row-3">
+        <div class="field">
+          <label for="salary_min">Salary Min</label>
+          <input id="salary_min" type="number" placeholder="e.g. 800000" min="0" />
+        </div>
+        <div class="field">
+          <label for="salary_max">Salary Max</label>
+          <input id="salary_max" type="number" placeholder="e.g. 1200000" min="0" />
+        </div>
+        <div class="field">
+          <label for="currency">Currency</label>
+          <select id="currency">
+            <option value="INR">INR</option>
+            <option value="USD">USD</option>
+            <option value="GBP">GBP</option>
+            <option value="EUR">EUR</option>
+            <option value="SGD">SGD</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label for="source">Source</label>
+          <select id="source">
+            <option value="">— manual —</option>
+            <option value="linkedin">LinkedIn</option>
+            <option value="naukri">Naukri</option>
+            <option value="indeed">Indeed</option>
+            <option value="greenhouse">Greenhouse</option>
+            <option value="lever">Lever</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="applied_date">Applied Date</label>
+          <input id="applied_date" type="date" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="url">Listing URL</label>
+        <input id="url" type="url" placeholder="https://…" />
+      </div>
+
+      <div class="field">
+        <label for="notes">Notes</label>
+        <textarea id="notes" rows="2" placeholder="Referral, interview prep notes…"></textarea>
+      </div>
+
+      <!-- Hidden — populated by scraper -->
+      <textarea id="job_description" style="display:none"></textarea>
+
+    </form>
+
+    <!-- Actions -->
+    <div class="actions">
+      <button id="save-btn" type="button" class="btn btn--primary">Save Job</button>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <button id="open-dashboard" type="button" class="link-btn">
+        Open Dashboard →
+      </button>
+    </footer>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

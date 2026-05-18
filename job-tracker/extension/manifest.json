@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "JobTrack",
+  "version": "1.0.0",
+  "description": "Save and track job applications from LinkedIn, Naukri, Indeed, and Greenhouse.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "background/service_worker.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://linkedin.com/jobs/*",
+        "https://www.naukri.com/*",
+        "https://naukri.com/*",
+        "https://www.indeed.com/*",
+        "https://indeed.com/*",
+        "https://boards.greenhouse.io/*"
+      ],
+      "js": [
+        "content/sites/linkedin.js",
+        "content/sites/naukri.js",
+        "content/sites/indeed.js",
+        "content/sites/greenhouse.js",
+        "content/scraper.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
