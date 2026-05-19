@@ -1,9 +1,15 @@
 async function scrapeLinkedIn() {
-  const jobId = window.location.pathname.match(/\/jobs\/view\/(\d+)/)?.[1];
+  // Direct job page: /jobs/view/{id}
+  const pathId = window.location.pathname.match(/\/jobs\/view\/(\d+)/)?.[1];
+  // Collections/recommendations page: ?currentJobId={id}
+  const rawQueryId = new URLSearchParams(window.location.search).get('currentJobId');
+  const queryId = rawQueryId && /^\d+$/.test(rawQueryId) ? rawQueryId : null;
+
+  const jobId = pathId ?? queryId;
 
   if (jobId) {
     try {
-      const result = await fetchVoyagerJobData(jobId);
+      const result = await fetchVoyagerJobData(jobId, !pathId);
       if (result) return result;
     } catch (e) {
       console.error('[JobTrack] Voyager fetch failed, falling back to DOM:', e);
@@ -15,7 +21,7 @@ async function scrapeLinkedIn() {
 
 // ── Voyager API ───────────────────────────────────────────────
 
-async function fetchVoyagerJobData(jobId) {
+async function fetchVoyagerJobData(jobId, useCanonicalUrl = false) {
   const csrfToken = linkedInCsrfToken();
   if (!csrfToken) return null;
 
@@ -52,6 +58,8 @@ async function fetchVoyagerJobData(jobId) {
       .join(' ');
   }
 
+  const canonicalUrl = `https://www.linkedin.com/jobs/view/${jobId}/`;
+
   return {
     title,
     company,
@@ -59,7 +67,7 @@ async function fetchVoyagerJobData(jobId) {
     workTypeHint,
     description: data.description?.text ?? null,
     salaryRaw:   null,
-    url:         window.location.href,
+    url:         useCanonicalUrl ? canonicalUrl : window.location.href,
     source:      'linkedin',
     currency:    'USD',
   };
