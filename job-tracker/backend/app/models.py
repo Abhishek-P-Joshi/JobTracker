@@ -75,11 +75,11 @@ class AppSettings(Base):
     id:         Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
     key:        Mapped[str]      = mapped_column(String, nullable=False, unique=True)
     value:      Mapped[str|None] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
-# TODO (low): EmailMatch is scaffolded for future email integration (Phase 5)
-# but has no router or schema yet — implement or remove when Phase 5 begins.
+# TODO (low): EmailMatch is scaffolded for future email integration but has no
+# router or schema yet — implement or remove when that phase begins.
 class EmailMatch(Base):
     __tablename__ = "email_matches"
 

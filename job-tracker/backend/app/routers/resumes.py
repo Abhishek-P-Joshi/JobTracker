@@ -2,8 +2,8 @@ import os
 from datetime import datetime, UTC
 from typing import Optional
 
+from docx import Document as DocxDocument
 import pypdf
-import docx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from ..schemas import ResumeConfig, ResumeConfigUpdate, ResumeFilenameUpdate, Re
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
+MAX_RESUME_FILES = 500
 
 # ── Settings helpers ──────────────────────────────────────────────────────────
 
@@ -26,7 +27,6 @@ def _set(db: Session, key: str, value: str) -> None:
     row = db.query(AppSettings).filter(AppSettings.key == key).first()
     if row:
         row.value = value
-        row.updated_at = datetime.now(UTC).replace(tzinfo=None)
     else:
         db.add(AppSettings(key=key, value=value))
     db.commit()
@@ -43,14 +43,37 @@ def _get_config(db: Session) -> ResumeConfig:
 def _require_folder(db: Session) -> str:
     path = _get(db, "resume_folder_path")
     if not path or not os.path.isdir(path):
-        raise HTTPException(status_code=400, detail="Resume folder not configured or no longer accessible. Set it via PUT /resumes/config.")
+        raise HTTPException(
+            status_code=400,
+            detail="Resume folder not configured or no longer accessible. Set it via PUT /resumes/config.",
+        )
     return path
+
+
+# ── Path safety ───────────────────────────────────────────────────────────────
+
+def _safe_join(folder: str, filename: str) -> str:
+    """Resolve the full path and reject anything that escapes the folder."""
+    resolved = os.path.realpath(os.path.join(folder, filename))
+    folder_real = os.path.realpath(folder)
+    if resolved != folder_real and not resolved.startswith(folder_real + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+    return resolved
+
+
+def _validate_resume_filename(folder: str, filename: str) -> str:
+    """Check extension and path safety; return the resolved absolute path."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported file type. Use .pdf or .docx.")
+    return _safe_join(folder, filename)
 
 
 # ── Text extraction ───────────────────────────────────────────────────────────
 
 def extract_resume_text(folder_path: str, filename: str) -> str:
-    path = os.path.join(folder_path, filename)
+    """Extract plain text from a .pdf or .docx inside folder_path."""
+    path = _safe_join(folder_path, filename)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail=f"Resume file not found: {filename}")
 
@@ -63,7 +86,7 @@ def extract_resume_text(folder_path: str, filename: str) -> str:
             raise HTTPException(status_code=422, detail=f"Could not read PDF: {exc}") from exc
     elif ext == ".docx":
         try:
-            doc = docx.Document(path)
+            doc = DocxDocument(path)
             text = "\n".join(p.text for p in doc.paragraphs)
         except Exception as exc:
             raise HTTPException(status_code=422, detail=f"Could not read DOCX: {exc}") from exc
@@ -95,8 +118,13 @@ def list_resumes(db: Session = Depends(get_db)):
     master  = _get(db, "master_resume_filename")
     default = _get(db, "default_resume_filename")
 
+    entries = sorted(os.listdir(folder))
+    # TODO (medium): add pagination if this limit becomes too restrictive
+    if len(entries) > MAX_RESUME_FILES:
+        raise HTTPException(status_code=400, detail=f"Resume folder contains more than {MAX_RESUME_FILES} files.")
+
     files = []
-    for name in sorted(os.listdir(folder)):
+    for name in entries:
         if os.path.splitext(name)[1].lower() not in ALLOWED_EXTENSIONS:
             continue
         full = os.path.join(folder, name)
@@ -116,7 +144,8 @@ def list_resumes(db: Session = Depends(get_db)):
 @router.put("/master", status_code=204)
 def set_master(data: ResumeFilenameUpdate, db: Session = Depends(get_db)):
     folder = _require_folder(db)
-    if not os.path.isfile(os.path.join(folder, data.filename)):
+    path = _validate_resume_filename(folder, data.filename)
+    if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail=f"File not found in resume folder: {data.filename}")
     _set(db, "master_resume_filename", data.filename)
 
@@ -124,7 +153,8 @@ def set_master(data: ResumeFilenameUpdate, db: Session = Depends(get_db)):
 @router.put("/default", status_code=204)
 def set_default(data: ResumeFilenameUpdate, db: Session = Depends(get_db)):
     folder = _require_folder(db)
-    if not os.path.isfile(os.path.join(folder, data.filename)):
+    path = _validate_resume_filename(folder, data.filename)
+    if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail=f"File not found in resume folder: {data.filename}")
     _set(db, "default_resume_filename", data.filename)
 
@@ -132,9 +162,7 @@ def set_default(data: ResumeFilenameUpdate, db: Session = Depends(get_db)):
 @router.get("/read", response_model=ResumeTextOut)
 def read_resume(filename: str = Query(..., min_length=1), db: Session = Depends(get_db)):
     folder = _require_folder(db)
-    # Reject path traversal attempts
-    if os.sep in filename or filename.startswith("."):
-        raise HTTPException(status_code=400, detail="Invalid filename.")
+    _validate_resume_filename(folder, filename)  # extension + path traversal check
     text = extract_resume_text(folder, filename)
     if len(text.strip()) < 50:
         raise HTTPException(

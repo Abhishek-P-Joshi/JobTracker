@@ -190,20 +190,24 @@ class ImportRequest(BaseModel):
 # ── Resumes ────────────────────────────────────────────────────────────────────
 
 class ResumeConfig(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     folder_path: Optional[str] = None
     master_resume: Optional[str] = None
     default_resume: Optional[str] = None
 
 
 class ResumeConfigUpdate(BaseModel):
-    folder_path: str = Field(..., min_length=1)
+    folder_path: str = Field(..., min_length=1, max_length=4096)
 
 
 class ResumeFilenameUpdate(BaseModel):
-    filename: str = Field(..., min_length=1)
+    filename: str = Field(..., min_length=1, max_length=255)
 
 
 class ResumeFileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     filename: str
     size_bytes: int
     modified_at: datetime
@@ -212,6 +216,8 @@ class ResumeFileOut(BaseModel):
 
 
 class ResumeTextOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     filename: str
     text: str
     char_count: int
