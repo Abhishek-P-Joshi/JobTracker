@@ -86,6 +86,7 @@ async function runScraper() {
     if (hostname.includes(domain)) {
       try {
         const raw = await fn();
+        if (!raw) return null;
         const { workTypeHint, description, salaryRaw, ...rest } = raw;
         const salary = parseSalary(salaryRaw);
         return {

@@ -5,7 +5,9 @@ async function scrapeLinkedIn() {
     try {
       const result = await fetchVoyagerJobData(jobId);
       if (result) return result;
-    } catch (_e) {}
+    } catch (e) {
+      console.error('[JobTrack] Voyager fetch failed, falling back to DOM:', e);
+    }
   }
 
   return scrapeLinkedInFallback();
@@ -29,6 +31,9 @@ async function fetchVoyagerJobData(jobId) {
   const title    = data.title ?? null;
   const location = data.formattedLocation ?? null;
 
+  // Require at least a title — a result with only location/work-type is not useful.
+  if (!title) return null;
+
   // companyDetails = { company: "urn:li:fs_normalized_company:{id}", $type: "..." }
   // The URN is not resolved in this response — requires a second fetch.
   let company = null;
@@ -42,10 +47,10 @@ async function fetchVoyagerJobData(jobId) {
   let workTypeHint = '';
   const wtr = data.workplaceTypesResolutionResults;
   if (wtr && typeof wtr === 'object') {
-    workTypeHint = Object.values(wtr).map((v) => v?.localizedName ?? '').join(' ');
+    workTypeHint = Object.values(wtr)
+      .map((v) => (v && typeof v === 'object' && typeof v.localizedName === 'string' ? v.localizedName : ''))
+      .join(' ');
   }
-
-  if (!title && !company) return null;
 
   return {
     title,
@@ -63,7 +68,8 @@ async function fetchVoyagerJobData(jobId) {
 async function resolveCompanyName(urn, csrfToken) {
   // "urn:li:fs_normalized_company:3787845" → "3787845"
   const companyId = urn.split(':').pop();
-  if (!companyId) return null;
+  // Reject empty strings and non-numeric IDs before constructing the URL.
+  if (!companyId || !/^\d+$/.test(companyId)) return null;
 
   const resp = await fetch(
     `https://www.linkedin.com/voyager/api/organization/companies/${companyId}`,
@@ -78,11 +84,15 @@ async function resolveCompanyName(urn, csrfToken) {
 function linkedInCsrfToken() {
   // JSESSIONID is LinkedIn's non-HttpOnly CSRF cookie.
   // Value format: "ajax:TOKEN" or "\"ajax:TOKEN\"" (Chrome may add quotes).
-  return document.cookie
+  const raw = document.cookie
     .split('; ')
     .find((row) => row.startsWith('JSESSIONID='))
     ?.split('=').slice(1).join('=')
-    .replace(/^"|"$/g, '') ?? null;
+    .replace(/^"|"$/g, '');
+
+  // Validate expected format before using as a request header value.
+  if (!raw || !/^ajax:[A-Za-z0-9._-]+$/.test(raw)) return null;
+  return raw;
 }
 
 function voyagerOpts(csrfToken, accept) {
@@ -105,6 +115,9 @@ function voyagerOpts(csrfToken, accept) {
 function scrapeLinkedInFallback() {
   let title = null, company = null, location = null;
 
+  // Greedy (.+) for the title group so the split occurs at the LAST " in "
+  // before " | LinkedIn", correctly handling job titles that contain " in "
+  // (e.g. "Senior Engineer in Machine Learning").
   let m = document.title.match(
     /^(.+?)\s+hiring\s+(.+)\s+in\s+(.+?)\s*\|\s*LinkedIn\s*$/i
   );

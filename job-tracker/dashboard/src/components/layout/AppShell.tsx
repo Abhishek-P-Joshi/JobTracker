@@ -29,8 +29,9 @@ export default function AppShell() {
   });
 
   useEffect(() => {
-    void api.ping().then(setBackendUp);
-    const timer = setInterval(() => { void api.ping().then(setBackendUp); }, 30_000);
+    const ping = () => { void api.ping().then(setBackendUp).catch(() => setBackendUp(false)); };
+    ping();
+    const timer = setInterval(ping, 30_000);
     return () => clearInterval(timer);
   }, []);
 

@@ -18,7 +18,8 @@ function downloadBlob(blob: Blob, filename: string) {
 export default function Settings() {
   const { profiles, updateProfile, removeProfile, loadProfiles } = useProfileStore();
   const { activeProfileId } = useProfile();
-  const { shortcutsEnabled, toggleShortcuts } = useAppSettingsStore();
+  const shortcutsEnabled = useAppSettingsStore((s) => s.shortcutsEnabled);
+  const toggleShortcuts  = useAppSettingsStore((s) => s.toggleShortcuts);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
@@ -33,8 +34,8 @@ export default function Settings() {
   };
 
   const saveEdit = async () => {
-    if (!editingId) return;
-    const updated = await api.updateProfile(editingId, { name: editName, color: editColor });
+    if (!editingId || !editName.trim()) return;
+    const updated = await api.updateProfile(editingId, { name: editName.trim(), color: editColor });
     updateProfile(updated);
     setEditingId(null);
   };
@@ -78,13 +79,19 @@ export default function Settings() {
     setImportMsg('');
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text);
-      const jobs = Array.isArray(parsed) ? parsed : parsed.jobs ?? [];
+      let jobs: unknown[];
+      try {
+        const parsed = JSON.parse(text);
+        jobs = Array.isArray(parsed) ? parsed : parsed.jobs ?? [];
+      } catch {
+        setImportMsg('Import failed. The file is not valid JSON.');
+        return;
+      }
       const result = await api.importJson(activeProfileId, jobs);
       setImportMsg(`Imported ${result.imported ?? jobs.length} jobs.`);
       loadProfiles();
     } catch {
-      setImportMsg('Import failed. Make sure the file is valid JSON.');
+      setImportMsg('Import failed. The server rejected the request.');
     } finally {
       setImporting(false);
       e.target.value = '';
@@ -204,12 +211,13 @@ export default function Settings() {
           <div className="card p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-200">Keyboard shortcuts</p>
+                <p id="shortcuts-label" className="text-sm text-gray-200">Keyboard shortcuts</p>
                 <p className="text-xs text-gray-600">N to add job, ? for help</p>
               </div>
               <button
                 role="switch"
                 aria-checked={shortcutsEnabled}
+                aria-labelledby="shortcuts-label"
                 onClick={toggleShortcuts}
                 className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${
                   shortcutsEnabled ? 'bg-brand' : 'bg-gray-700'
