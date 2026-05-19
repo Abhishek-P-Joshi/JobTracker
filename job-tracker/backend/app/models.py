@@ -68,6 +68,16 @@ class StatusHistory(Base):
     job: Mapped["Job"] = relationship("Job", back_populates="status_history")
 
 
+class AppSettings(Base):
+    """Key-value store for app-wide settings (resume folder, master/default filenames)."""
+    __tablename__ = "app_settings"
+
+    id:         Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key:        Mapped[str]      = mapped_column(String, nullable=False, unique=True)
+    value:      Mapped[str|None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
 # TODO (low): EmailMatch is scaffolded for future email integration (Phase 5)
 # but has no router or schema yet — implement or remove when Phase 5 begins.
 class EmailMatch(Base):

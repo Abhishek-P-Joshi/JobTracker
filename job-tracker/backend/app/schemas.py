@@ -185,3 +185,33 @@ class WorkTypeStat(BaseModel):
 class ImportRequest(BaseModel):
     profile_id: int
     jobs: list[JobCreate]
+
+
+# ── Resumes ────────────────────────────────────────────────────────────────────
+
+class ResumeConfig(BaseModel):
+    folder_path: Optional[str] = None
+    master_resume: Optional[str] = None
+    default_resume: Optional[str] = None
+
+
+class ResumeConfigUpdate(BaseModel):
+    folder_path: str = Field(..., min_length=1)
+
+
+class ResumeFilenameUpdate(BaseModel):
+    filename: str = Field(..., min_length=1)
+
+
+class ResumeFileOut(BaseModel):
+    filename: str
+    size_bytes: int
+    modified_at: datetime
+    is_master: bool
+    is_default: bool
+
+
+class ResumeTextOut(BaseModel):
+    filename: str
+    text: str
+    char_count: int

@@ -1,7 +1,10 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
-from .routers import profiles, jobs, analytics, export
+from .routers import profiles, jobs, analytics, export, resumes
 
 Base.metadata.create_all(bind=engine)
 
@@ -22,6 +25,7 @@ app.include_router(profiles.router)
 app.include_router(jobs.router)
 app.include_router(analytics.router)
 app.include_router(export.router)
+app.include_router(resumes.router)
 
 
 @app.get("/")
