@@ -53,17 +53,35 @@ job-tracker/
 - Top locations — horizontal bar
 - Salary distribution — bar chart with min/max ranges
 
+**Resume Vault**
+- Point the app at a local folder containing your resumes (`.pdf` and `.docx`)
+- Designate one file as your **master resume** (comprehensive skills and experience) and one as your **default resume** (current go-to for applications)
+- Files are listed with master/default badges; click to reassign them instantly
+
+**AI Analysis** *(requires Anthropic API key)*
+- Analyze any saved job from the detail panel — select which resume to score and which master resume to use as the reference
+- Returns a **score out of 100**, strengths, gaps, and specific improvement suggestions each with an estimated score impact
+- **AI Analysis page** lists every run across all jobs with click-to-expand full results
+- Re-analyze after updating your resume to track score improvement over time
+
 **Settings**
 - Create, rename, and color-code profiles
 - Export jobs as CSV or JSON
 - Import from JSON
 - Toggle keyboard shortcuts
+- Resume Vault folder configuration
 
 **Keyboard shortcuts**
 - `N` — add job manually
 - `Cmd+K` — focus search
 - `Escape` — close panels and modals
 - `?` — show shortcuts reference
+
+### Chrome Extension — Analyze tab
+
+- Switch to the **Analyze** tab in the popup on any supported job page (no save required)
+- Select scored resume and master resume, then click **Run Analysis**
+- Get an instant score, strengths, gaps, and suggestions — results are stored and visible in the dashboard AI Analysis page
 
 ### Backend
 
@@ -166,44 +184,12 @@ The service worker handles all network calls to the backend — content scripts 
 
 ## Roadmap
 
-### Resume Vault *(next)*
-
-- Point the app at a local folder containing your resumes (`.pdf` and `.docx`)
-- Designate one file as your **master resume** (comprehensive skills and experience) and one as your **default resume** (current go-to for applications)
-- Both can be the same file
-
-### AI Job Analysis *(next)*
-
-Powered by **Claude Sonnet 4.6** via the Anthropic API.
-
-**From the extension popup (no save required)**
-- Open the Analyze tab on any job page
-- Select which resume to score and which master resume to cross-reference
-- Get an instant analysis:
-  - **Current score** — how well your resume matches this job today (0–100)
-  - **Strengths** — what your resume already covers well
-  - **Gaps** — requirements you don't address
-  - **Improvement suggestions** — specific additions from your master resume that are relevant to this job, each with an estimated score impact
-  - **Projected score** — your score if you incorporated the suggestions
-- Decide to save the job or move on — analysis runs before you commit to anything
-
-**From the dashboard**
-- Analyze any saved job directly from the detail panel
-- Re-analyze after updating your resume to track score improvement over time
-- Full run history: see how your score evolved across resume versions
-
-**AI Analysis page**
-- Lists every analysis run, grouped by job, scoped to the active profile
-- Score history shown as a progression (67 → 74 → 82)
-- Filter by score range and resume version
-- Jobs analyzed from the popup but not yet saved show an inline "Save to profile" button
-
 ### AI Resume Tailoring *(planned)*
 
 - Generate a fully tailored version of your default resume for a specific job
 - Side-by-side diff view — additions highlighted green, removals struck through
 - Accept or reject individual suggestions
-- Save the accepted version as a new file in both `.docx` and `.pdf` format, alongside your original
+- Save the accepted version as a new `.docx` and `.pdf` file alongside your original
 
 ---
 

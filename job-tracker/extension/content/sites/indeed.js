@@ -24,7 +24,7 @@ function scrapeIndeed() {
       get('[data-testid="inlineHeader-companyName"]'),
     location: get('[data-testid="job-location"]'),
     workTypeHint: get('[data-testid="workplace-type"]'),
-    description: get('#jobDescriptionText'),
+    description: htmlToMarkdown(document.querySelector('#jobDescriptionText')),
     salaryRaw,
     url: window.location.href,
     source: 'indeed',

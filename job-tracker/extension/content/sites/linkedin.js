@@ -152,8 +152,8 @@ function scrapeLinkedInFallback() {
       get('.jobs-unified-top-card__workplace-type') ||
       null,
     description:
-      get('.jobs-description__content .jobs-description-content__text') ||
-      get('.jobs-description__content') ||
+      htmlToMarkdown(document.querySelector('.jobs-description__content .jobs-description-content__text')) ||
+      htmlToMarkdown(document.querySelector('.jobs-description__content')) ||
       null,
     salaryRaw: null,
     url:       window.location.href,

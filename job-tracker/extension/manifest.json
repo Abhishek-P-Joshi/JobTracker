@@ -35,6 +35,7 @@
         "https://boards.greenhouse.io/*"
       ],
       "js": [
+        "content/utils.js",
         "content/sites/linkedin.js",
         "content/sites/naukri.js",
         "content/sites/indeed.js",

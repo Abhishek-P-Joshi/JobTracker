@@ -19,9 +19,9 @@ function scrapeNaukri() {
       get('[class*="other-details"]') ||
       get('[class*="workMode"]'),
     description:
-      get('.job-desc') ||
-      get('[class*="job-desc"]') ||
-      get('[class*="jobDesc"]'),
+      htmlToMarkdown(document.querySelector('.job-desc')) ||
+      htmlToMarkdown(document.querySelector('[class*="job-desc"]')) ||
+      htmlToMarkdown(document.querySelector('[class*="jobDesc"]')),
     // Raw salary text: scraper.js will parse "8-12 Lacs PA" → INR min/max
     salaryRaw:
       get('.salary') ||

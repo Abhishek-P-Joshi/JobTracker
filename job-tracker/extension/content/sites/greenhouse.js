@@ -12,7 +12,7 @@ function scrapeGreenhouse() {
     company,
     location: get('.location') || get('[class*="location"]'),
     workTypeHint: null,
-    description: get('#content') || get('.content'),
+    description: htmlToMarkdown(document.querySelector('#content')) || htmlToMarkdown(document.querySelector('.content')),
     salaryRaw: get('.salary') || get('[data-qa="salary"]') || null,
     url: window.location.href,
     source: 'greenhouse',
