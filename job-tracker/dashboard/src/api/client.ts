@@ -11,6 +11,8 @@ import type {
   SalaryStats,
   SourcePoint,
   WorkTypePoint,
+  ResumeConfig,
+  ResumeFile,
 } from '../types';
 
 const http = axios.create({ baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000' });
@@ -98,6 +100,16 @@ export const api = {
 
   importJson: (profileId: number, jobs: unknown[]) =>
     http.post('/import/json', { profile_id: profileId, jobs }).then((r) => r.data),
+
+  // ── Resume Vault ──────────────────────────────────────────
+  getResumeConfig: () =>
+    http.get<ResumeConfig>('/resumes/config').then((r) => r.data),
+
+  updateResumeConfig: (data: { folder_path?: string; master_resume?: string; default_resume?: string }) =>
+    http.patch<ResumeConfig>('/resumes/config', data).then((r) => r.data),
+
+  listResumes: () =>
+    http.get<ResumeFile[]>('/resumes').then((r) => r.data),
 
   // ── Health ────────────────────────────────────────────────
   ping: () =>

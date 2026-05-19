@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useProfileStore } from '../store/profileStore';
 import { useProfile } from '../hooks/useProfile';
 import { useAppSettingsStore } from '../store/appSettingsStore';
 import { api } from '../api/client';
+import type { ResumeConfig, ResumeFile } from '../types';
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -26,6 +27,94 @@ export default function Settings() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
+
+  // Resume Vault state
+  const [resumeConfig, setResumeConfig] = useState<ResumeConfig | null>(null);
+  const [resumeFiles, setResumeFiles] = useState<ResumeFile[]>([]);
+  const [folderInput, setFolderInput] = useState('');
+  const [folderSaving, setFolderSaving] = useState(false);
+  const [folderError, setFolderError] = useState('');
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [resumeError, setResumeError] = useState('');
+  const [badgeMsg, setBadgeMsg] = useState('');
+  const [badgeIsError, setBadgeIsError] = useState(false);
+  const [settingResume, setSettingResume] = useState(false);
+
+  // Declared as a function so it is hoisted and safe to call from useEffect below.
+  async function loadResumeFiles() {
+    setResumeLoading(true);
+    setResumeError('');
+    try {
+      const files = await api.listResumes();
+      setResumeFiles(files);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setResumeError(msg ?? 'Could not load resume files.');
+    } finally {
+      setResumeLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    api.getResumeConfig().then((cfg) => {
+      setResumeConfig(cfg);
+      setFolderInput(cfg.folder_path ?? '');
+      if (cfg.folder_path) loadResumeFiles();
+    }).catch(() => {
+      setFolderError('Could not load resume configuration. Is the backend running?');
+    });
+  // loadResumeFiles is a stable function declaration — safe to omit from deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSetFolder = async () => {
+    const path = folderInput.trim();
+    if (!path) return;
+    setFolderSaving(true);
+    setFolderError('');
+    try {
+      const cfg = await api.updateResumeConfig({ folder_path: path });
+      setResumeConfig(cfg);
+      await loadResumeFiles();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setFolderError(msg ?? 'Could not set folder.');
+    } finally {
+      setFolderSaving(false);
+    }
+  };
+
+  const handleSetResume = async (filename: string, role: 'master_resume' | 'default_resume') => {
+    if (settingResume) return;
+    setSettingResume(true);
+    setBadgeMsg('');
+    setBadgeIsError(false);
+    try {
+      const cfg = await api.updateResumeConfig({ [role]: filename });
+      setResumeConfig(cfg);
+      setResumeFiles((prev) =>
+        prev.map((f) => ({
+          ...f,
+          is_master:  role === 'master_resume'  ? f.filename === filename : f.is_master,
+          is_default: role === 'default_resume' ? f.filename === filename : f.is_default,
+        }))
+      );
+      setBadgeMsg(role === 'master_resume' ? 'Master resume updated.' : 'Default resume updated.');
+      setTimeout(() => setBadgeMsg(''), 3000);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setBadgeMsg(msg ?? 'Could not update resume.');
+      setBadgeIsError(true);
+    } finally {
+      setSettingResume(false);
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const startEdit = (id: number, name: string, color: string) => {
     setEditingId(id);
@@ -230,6 +319,113 @@ export default function Settings() {
                 />
               </button>
             </div>
+          </div>
+        </section>
+
+        {/* Resume Vault */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-300 mb-3">Resume Vault</h2>
+          <div className="card p-4 space-y-4">
+            {/* Folder path */}
+            <div>
+              <p className="text-sm text-gray-200 mb-1">Resume folder</p>
+              <p className="text-xs text-gray-500 mb-2">Absolute path to the folder containing your .pdf and .docx resumes.</p>
+              <div className="flex gap-2">
+                <input
+                  value={folderInput}
+                  onChange={(e) => setFolderInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSetFolder()}
+                  placeholder="/Users/you/Documents/Resumes"
+                  className="input flex-1 font-mono text-xs"
+                />
+                <button
+                  onClick={handleSetFolder}
+                  disabled={folderSaving || !folderInput.trim()}
+                  className="btn-primary py-1.5 text-xs flex-shrink-0"
+                >
+                  {folderSaving ? 'Saving…' : 'Set Folder'}
+                </button>
+              </div>
+              {folderError && <p className="text-xs text-red-400 mt-1">{folderError}</p>}
+            </div>
+
+            {/* File list */}
+            {resumeConfig?.folder_path && (
+              <>
+                <div className="border-t border-gray-800" />
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-200">Files</p>
+                    <button onClick={loadResumeFiles} className="text-xs text-gray-500 hover:text-gray-300">
+                      Refresh
+                    </button>
+                  </div>
+
+                  {resumeConfig.master_resume === resumeConfig.default_resume && resumeConfig.master_resume && (
+                    <p className="text-xs text-amber-400 mb-2">
+                      Same file is set for both roles — AI analysis will infer improvements from the job description only.
+                    </p>
+                  )}
+
+                  {badgeMsg && (
+                    <p className={`text-xs mb-2 ${badgeIsError ? 'text-red-400' : 'text-green-400'}`}>{badgeMsg}</p>
+                  )}
+
+                  {resumeLoading && (
+                    <p className="text-xs text-gray-500">Loading files…</p>
+                  )}
+
+                  {resumeError && !resumeLoading && (
+                    <p className="text-xs text-red-400">{resumeError}</p>
+                  )}
+
+                  {!resumeLoading && !resumeError && resumeFiles.length === 0 && (
+                    <p className="text-xs text-gray-600">No .pdf or .docx files found in this folder.</p>
+                  )}
+
+                  {!resumeLoading && resumeFiles.length > 0 && (
+                    <div className="divide-y divide-gray-800 rounded border border-gray-800">
+                      {resumeFiles.map((f) => (
+                        <div key={f.filename} className="px-3 py-2.5 flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-mono text-gray-200 truncate">{f.filename}</p>
+                            <p className="text-xs text-gray-600">
+                              {formatBytes(f.size_bytes)} · {new Date(f.modified_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {f.is_master && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300">master</span>
+                            )}
+                            {f.is_default && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-green-950 text-green-300">default</span>
+                            )}
+                            {!f.is_master && (
+                              <button
+                                onClick={() => handleSetResume(f.filename, 'master_resume')}
+                                disabled={settingResume}
+                                className="text-xs text-gray-500 hover:text-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                Set master
+                              </button>
+                            )}
+                            {!f.is_default && (
+                              <button
+                                onClick={() => handleSetResume(f.filename, 'default_resume')}
+                                disabled={settingResume}
+                                className="text-xs text-gray-500 hover:text-green-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                Set default
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </section>
 

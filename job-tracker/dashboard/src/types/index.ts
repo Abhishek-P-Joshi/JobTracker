@@ -154,3 +154,19 @@ export interface WorkTypePoint {
   work_type: WorkType;
   count: number;
 }
+
+// ── Resume Vault ──────────────────────────────────────────────────────────────
+
+export interface ResumeConfig {
+  folder_path: string | null;
+  master_resume: string | null;
+  default_resume: string | null;
+}
+
+export interface ResumeFile {
+  filename: string;
+  size_bytes: number;
+  modified_at: string;
+  is_master: boolean;
+  is_default: boolean;
+}
