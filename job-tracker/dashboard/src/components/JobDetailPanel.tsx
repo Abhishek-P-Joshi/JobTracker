@@ -45,6 +45,7 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
     setForm(job);
     setAnalysis(null);
     setShowAnalyzeSetup(true);
+    setShowJobDesc(false);
 
     let cancelled = false;
 

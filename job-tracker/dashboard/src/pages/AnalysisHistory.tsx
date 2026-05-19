@@ -89,16 +89,17 @@ function AnalysisRow({ summary }: { summary: AnalysisSummary }) {
   const [expanded, setExpanded] = useState(false);
   const [full, setFull] = useState<JobAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState('');
 
   const toggle = async () => {
     if (!expanded && !full) {
       setLoading(true);
+      setFetchError('');
       try {
         const data = await api.getAnalysis(summary.id);
         setFull(data);
       } catch {
-        // keep expanded=false so user can retry
-        setLoading(false);
+        setFetchError('Could not load full analysis. Click to retry.');
         return;
       } finally {
         setLoading(false);
@@ -137,6 +138,7 @@ function AnalysisRow({ summary }: { summary: AnalysisSummary }) {
       </button>
 
       {loading && <p className="text-xs text-gray-500 mt-2">Loading…</p>}
+      {fetchError && <p className="text-xs text-red-400 mt-2">{fetchError}</p>}
       {expanded && full && <FullAnalysis data={full} />}
     </div>
   );
