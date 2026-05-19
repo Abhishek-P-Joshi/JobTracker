@@ -45,7 +45,7 @@ def _require_folder(db: Session) -> str:
     if not path or not os.path.isdir(path):
         raise HTTPException(
             status_code=400,
-            detail="Resume folder not configured or no longer accessible. Set it via PUT /resumes/config.",
+            detail="Resume folder not configured or no longer accessible. Set it via PATCH /resumes/config.",
         )
     return path
 
@@ -103,8 +103,11 @@ def get_config(db: Session = Depends(get_db)):
     return _get_config(db)
 
 
-@router.put("/config", response_model=ResumeConfig)
+@router.patch("/config", response_model=ResumeConfig)
 def update_config(data: ResumeConfigUpdate, db: Session = Depends(get_db)):
+    if data.folder_path is None and data.master_resume is None and data.default_resume is None:
+        raise HTTPException(status_code=422, detail="At least one field must be provided.")
+
     if data.folder_path is not None:
         path = data.folder_path.strip()
         if not os.path.isdir(path):
@@ -114,15 +117,17 @@ def update_config(data: ResumeConfigUpdate, db: Session = Depends(get_db)):
     if data.master_resume is not None or data.default_resume is not None:
         folder = _require_folder(db)
         if data.master_resume is not None:
-            resolved = _validate_resume_filename(folder, data.master_resume)
+            name = data.master_resume.strip()
+            resolved = _validate_resume_filename(folder, name)
             if not os.path.isfile(resolved):
-                raise HTTPException(status_code=404, detail=f"File not found in resume folder: {data.master_resume}")
-            _set(db, "master_resume_filename", data.master_resume)
+                raise HTTPException(status_code=404, detail=f"File not found in resume folder: {name}")
+            _set(db, "master_resume_filename", name)
         if data.default_resume is not None:
-            resolved = _validate_resume_filename(folder, data.default_resume)
+            name = data.default_resume.strip()
+            resolved = _validate_resume_filename(folder, name)
             if not os.path.isfile(resolved):
-                raise HTTPException(status_code=404, detail=f"File not found in resume folder: {data.default_resume}")
-            _set(db, "default_resume_filename", data.default_resume)
+                raise HTTPException(status_code=404, detail=f"File not found in resume folder: {name}")
+            _set(db, "default_resume_filename", name)
 
     return _get_config(db)
 
@@ -133,7 +138,11 @@ def list_resumes(db: Session = Depends(get_db)):
     master  = _get(db, "master_resume_filename")
     default = _get(db, "default_resume_filename")
 
-    entries = sorted(os.listdir(folder))
+    try:
+        entries = sorted(os.listdir(folder))
+    except OSError as exc:
+        raise HTTPException(status_code=503, detail=f"Could not read resume folder: {exc}") from exc
+
     # TODO (medium): add pagination if this limit becomes too restrictive
     if len(entries) > MAX_RESUME_FILES:
         raise HTTPException(status_code=400, detail=f"Resume folder contains more than {MAX_RESUME_FILES} files.")
@@ -145,7 +154,10 @@ def list_resumes(db: Session = Depends(get_db)):
         full = os.path.join(folder, name)
         if not os.path.isfile(full):
             continue
-        stat = os.stat(full)
+        try:
+            stat = os.stat(full)
+        except OSError:
+            continue
         files.append(ResumeFileOut(
             filename=name,
             size_bytes=stat.st_size,
