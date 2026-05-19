@@ -1,3 +1,6 @@
+# Claude Code personal config (not part of the app)
+.claude/
+
 # Python
 job-tracker/backend/venv/
 job-tracker/backend/__pycache__/
