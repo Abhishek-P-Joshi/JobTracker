@@ -13,10 +13,13 @@
 5. [Phase 2 — The Chrome Extension](#phase-2--the-chrome-extension)
 6. [Phase 3 — The Dashboard](#phase-3--the-dashboard)
 7. [Phase 4 — Polish & Integration](#phase-4--polish--integration)
-8. [Data Model](#data-model)
-9. [Key Design Decisions & Trade-offs](#key-design-decisions--trade-offs)
-10. [Security Considerations](#security-considerations)
-11. [What's Next](#whats-next)
+8. [Phase 5 — LinkedIn Voyager API & Job Description Formatting](#phase-5--linkedin-voyager-api--job-description-formatting)
+9. [Phase 6 — Resume Vault](#phase-6--resume-vault)
+10. [Phase 7 — AI Analysis](#phase-7--ai-analysis)
+11. [Data Model](#data-model)
+12. [Key Design Decisions & Trade-offs](#key-design-decisions--trade-offs)
+13. [Security Considerations](#security-considerations)
+14. [What's Next](#whats-next)
 
 ---
 
@@ -48,34 +51,37 @@ JobTrack has three independent layers that communicate over localhost:
 │  │  ┌────────────────┐  │      │  ┌──────────┐  ┌─────────┐  │ │
 │  │  │ Content Script │  │      │  │  Kanban  │  │ Charts  │  │ │
 │  │  │ (site scrapers)│  │      │  └──────────┘  └─────────┘  │ │
-│  │  └───────┬────────┘  │      │  ┌──────────┐  ┌─────────┐  │ │
-│  │          │ message   │      │  │  Table   │  │Settings │  │ │
-│  │  ┌───────▼────────┐  │      │  └──────────┘  └─────────┘  │ │
-│  │  │Service Worker  │  │      │                              │ │
-│  │  │ (message bus)  │  │      │   React Query ←→ Zustand     │ │
-│  │  └───────┬────────┘  │      └──────────────┬───────────────┘ │
-│  │          │ fetch     │                      │ axios           │
-│  └──────────┼───────────┘                      │                 │
+│  │  │ htmlToMarkdown │  │      │  ┌──────────┐  ┌─────────┐  │ │
+│  │  └───────┬────────┘  │      │  │  Table   │  │Settings │  │ │
+│  │          │ message   │      │  └──────────┘  └─────────┘  │ │
+│  │  ┌───────▼────────┐  │      │  ┌──────────┐  ┌─────────┐  │ │
+│  │  │Service Worker  │  │      │  │ AI Hist. │  │ Vault   │  │ │
+│  │  │ (message bus)  │  │      │  └──────────┘  └─────────┘  │ │
+│  │  └───────┬────────┘  │      │                              │ │
+│  │          │ fetch     │      │   React Query ←→ Zustand     │ │
+│  └──────────┼───────────┘      └──────────────┬───────────────┘ │
 └─────────────┼────────────────────────────────┬─┘                 │
               │                                │                   │
               └──────────────┐  ┌─────────────┘                   │
                              │  │                                  │
-                    ┌────────▼──▼────────┐                         │
-                    │   FastAPI Backend  │                         │
-                    │  http://localhost  │                         │
-                    │       :8000        │                         │
-                    │                   │                         │
-                    │  /profiles        │                         │
-                    │  /jobs            │                         │
-                    │  /analytics/*     │                         │
-                    │  /export/*        │                         │
-                    │  /import/*        │                         │
-                    └────────┬──────────┘                         │
-                             │ SQLAlchemy ORM                      │
-                    ┌────────▼──────────┐                         │
-                    │   SQLite (dev)    │                         │
-                    │    jobs.db        │                         │
-                    └───────────────────┘                         │
+                    ┌────────▼──▼────────┐       ┌───────────────┐ │
+                    │   FastAPI Backend  │       │  Anthropic    │ │
+                    │  http://localhost  ├───────►│  Claude API   │ │
+                    │       :8000        │       │  (ai/analyze) │ │
+                    │                   │       └───────────────┘ │
+                    │  /profiles        │                          │
+                    │  /jobs            │       ┌───────────────┐  │
+                    │  /resumes         ├───────►  Local Folder │  │
+                    │  /ai              │       │  *.pdf *.docx │  │
+                    │  /analytics/*     │       └───────────────┘  │
+                    │  /export/*        │                          │
+                    │  /import/*        │                          │
+                    └────────┬──────────┘                          │
+                             │ SQLAlchemy ORM                       │
+                    ┌────────▼──────────┐                          │
+                    │   SQLite (dev)    │                          │
+                    │    jobs.db        │                          │
+                    └───────────────────┘                          │
 ```
 
 All three components run locally. The extension and dashboard both talk to the backend over HTTP — they never communicate directly with each other.
@@ -100,6 +106,15 @@ All three components run locally. The extension and dashboard both talk to the b
 | Background | Service Worker | Persistent-free message bus; handles fetch calls to backend |
 | Content Scripts | Vanilla JS | No build step needed; injected per-site for scraping |
 | Site Scrapers | LinkedIn, Naukri, Indeed, Greenhouse | Covers the four most common job boards in India + global |
+| LinkedIn Voyager | Internal LinkedIn REST API | Returns structured JSON with title, company, work type — more reliable than DOM scraping |
+| Job Description | `htmlToMarkdown()` utility | Converts DOM elements to plain text preserving bullets, paragraphs, headings |
+
+### AI
+| Layer | Technology | Why |
+|---|---|---|
+| LLM | Claude Sonnet 4.6 (Anthropic) | Best-in-class reasoning; structured JSON output; Python SDK |
+| Resume parsing | `pdfminer.six` + `python-docx` | Pure-Python; no external services; reads directly from local files |
+| Config storage | SQLite KV table (`settings`) | Reuses existing DB; no separate config file; survives restarts |
 
 ### Dashboard
 | Layer | Technology | Why |
@@ -125,13 +140,15 @@ The backend is a single FastAPI application with four routers:
 app/
 ├── main.py          # CORS, router registration, startup event
 ├── database.py      # SQLAlchemy engine + session factory
-├── models.py        # ORM models (Profile, Job, StatusHistory)
+├── models.py        # ORM models (Profile, Job, StatusHistory, JobAnalysis)
 ├── schemas.py       # Pydantic request/response schemas
 └── routers/
     ├── profiles.py  # CRUD for profiles
     ├── jobs.py      # CRUD + move + duplicate guard
     ├── analytics.py # Aggregate queries (summary, timeline, locations, salary)
-    └── export.py    # CSV/JSON export, JSON import
+    ├── export.py    # CSV/JSON export, JSON import
+    ├── resumes.py   # Resume Vault: folder config, file listing, master/default assignment
+    └── ai.py        # AI analysis: POST /analyze, GET /analyses, GET /analyses/{id}
 ```
 
 ### The Data Model (brief)
@@ -224,7 +241,7 @@ App.tsx
         └── BrowserRouter
             └── AppShell (sidebar layout)
                 ├── Sidebar
-                │   ├── NavLinks (Dashboard, Applications, Insights, Settings)
+                │   ├── NavLinks (Dashboard, Applications, Insights, AI Analysis, Settings)
                 │   ├── AddJobModal trigger + keyboard shortcut handler
                 │   └── ProfileSwitcher (Zustand → activeProfileId)
                 └── <Outlet /> (active page)
@@ -241,9 +258,22 @@ App.tsx
                     │   ├── TopLocations (horizontal BarChart)
                     │   ├── SalaryDistribution (BarChart)
                     │   └── WorkTypeBreakdown (PieChart)
+                    ├── AnalysisHistory.tsx
+                    │   ├── AnalysisRow (click-to-expand, lazy fetch)
+                    │   └── FullAnalysis (score, strengths, gaps, suggestions)
                     └── Settings.tsx
                         ├── Profile CRUD (name, color picker)
-                        └── Export CSV / JSON, Import JSON
+                        ├── Export CSV / JSON, Import JSON
+                        └── Resume Vault (folder path, file list, master/default badges)
+
+JobDetailPanel.tsx (slide-in panel, not a route)
+    ├── Inline field editing (company, title, status, salary, notes…)
+    ├── Status timeline
+    ├── Job description (collapsible, whitespace-pre-wrap)
+    └── AI Analysis section
+        ├── Resume + master resume dropdowns
+        ├── Analyze Match button → POST /ai/analyze
+        └── Result (score, verdict, collapsible strengths/gaps, suggestions)
 ```
 
 ### State Management: Two Layers
@@ -382,6 +412,183 @@ if (!activeProfileId) {
 
 ---
 
+## Phase 5 — LinkedIn Voyager API & Job Description Formatting
+
+### LinkedIn Voyager API
+
+The original LinkedIn scraper read from the DOM — brittle against markup changes and unable to parse structured fields like work type. The Voyager API (LinkedIn's internal REST API, the same one the LinkedIn frontend uses) returns clean JSON:
+
+```
+GET https://www.linkedin.com/voyager/api/jobs/jobPostings/{jobId}
+Headers:
+  csrf-token: <value from JSESSIONID cookie>
+  x-restli-protocol-version: 2.0.0
+  accept: application/vnd.linkedin.normalized+json+2.1
+```
+
+The response includes `title`, `formattedLocation`, `workplaceTypesResolutionResults` (an object keyed by URN), and `description.text`. Company name comes from a second fetch to `/voyager/api/organization/companies/{companyId}`.
+
+**CSRF token extraction**: LinkedIn's `JSESSIONID` cookie is non-HttpOnly and uses the format `"ajax:TOKEN"`. We extract it from `document.cookie` and validate the format with a regex before using it as a request header.
+
+**Fallback chain**: If the cookie is absent, the format is unexpected, or either Voyager fetch fails, the scraper falls back silently to DOM extraction without surfacing an error to the user.
+
+**Job ID sources**: LinkedIn has two URL shapes — `/jobs/view/{id}` and `/jobs/collections/recommended/?currentJobId={id}`. Both are handled; the collections form uses a canonical URL for deduplication.
+
+### Job Description Formatting
+
+Early versions used `element.textContent`, which collapses all whitespace and loses structure. The improvement:
+
+```
+                 DOM Element
+                      │
+              cloneNode(true)  ← no live DOM mutation
+                      │
+           strip script/style/hidden
+                      │
+        h1-h6 → prepend '\n' + append '\n'
+        p/div/section → append '\n'
+        br → replace with '\n'
+        li → prepend '• '  + append '\n'
+                      │
+              .textContent
+                      │
+        collapse spaces, dedupe blank lines
+                      │
+             trim() || null   ← empty string → null
+```
+
+The converter lives in `content/utils.js`, which is listed first in the manifest so it's available to all site scrapers. The LinkedIn Voyager path is unaffected — `description.text` already contains `\n`-separated paragraphs.
+
+The output is stored as plain text in the `job_description` TEXT column and rendered in a `<pre className="whitespace-pre-wrap">` — no HTML parser needed on the dashboard side, no XSS risk.
+
+---
+
+## Phase 6 — Resume Vault
+
+### The Problem
+
+The AI analysis needs to read resume content. The simplest design would ask the user to paste resume text into a form. The better design: point the app at a folder on your machine, and let it read files automatically.
+
+### Implementation
+
+**Backend (`/resumes` router)**:
+
+```
+GET  /resumes          → list files in the configured folder (name, size, is_default, is_master)
+GET  /resumes/config   → { folder_path, master_resume, default_resume }
+PATCH /resumes/config  → update any combination of the three fields
+
+Path traversal guard:
+  os.path.realpath(folder + '/' + filename)
+  must start with os.path.realpath(folder) + '/'
+```
+
+Configuration is stored in a key-value `settings` table — three rows (`resume_folder_path`, `default_resume_filename`, `master_resume_filename`). Filenames are stored without paths; the folder is always the configured folder.
+
+`extract_resume_text(folder, filename)` reads `.pdf` files with `pdfminer.six` and `.docx` files with `python-docx`. All other extensions are rejected with a 400. The extracted text is passed directly to the AI prompt — it is never stored in the database.
+
+**Why PATCH not PUT for config?** The three config fields are independent. A user setting their master resume shouldn't have to also re-submit their folder path. `PATCH` with partial updates is semantically correct. An empty body (all fields `None`) returns 422 — it's not a valid no-op request.
+
+**Frontend (Settings page)**:
+
+The Resume Vault section shows:
+- A text input for the folder path with a "Save" button
+- On success, a file list rendered immediately from `GET /resumes`
+- Each file row has a "Set as default" and "Set as master" button; clicking either calls `PATCH /resumes/config` and re-fetches the list
+- A `settingResume` flag prevents concurrent in-flight config updates from racing
+
+---
+
+## Phase 7 — AI Analysis
+
+### Prompt Architecture
+
+Analysis runs in two modes depending on whether the scored resume and master resume are the same file:
+
+**Dual-mode** (different files — the common case):
+```
+<job_description>…</job_description>
+<scored_resume>…</scored_resume>
+<master_resume>…</master_resume>
+
+Score the candidate's current resume against the job description (0-100).
+Then identify specific content from the master resume that would improve the score.
+Return JSON: { current_score, projected_score, verdict, strengths, gaps, suggestions }
+```
+
+**Single-mode** (same file for both):
+```
+<job_description>…</job_description>
+<resume>…</resume>
+
+Score the resume against the job description.
+Return JSON: { current_score, projected_score: null, verdict, strengths, gaps, suggestions }
+```
+
+XML content tags (`<job_description>`, `<scored_resume>`, etc.) mitigate prompt injection — content inside the tags is treated as data, not instructions. The raw Claude response and any parsing errors are logged server-side and never forwarded to the client.
+
+### Response Parsing
+
+Claude is asked for JSON, but LLM output can be unpredictable. The `_parse_analysis()` function validates:
+
+1. Valid JSON (catches `JSONDecodeError`)
+2. All required keys present (`current_score`, `projected_score`, `verdict`, `strengths`, `gaps`, `suggestions`)
+3. `suggestions` is a list of `{text, score_impact}` dicts
+4. `current_score` and `projected_score` are integers in [0, 100]
+
+A `_safe_int()` helper casts numeric-like values (e.g., `"78"`) and clamps to [0, 100]. Any structural mismatch returns 502 with a sanitised message — the raw response is only logged, never sent to the client.
+
+### Data Flow
+
+```
+Dashboard / Extension popup
+         │
+         │  POST /ai/analyze
+         │  { profile_id, job_description, scored_resume_filename,
+         │    master_resume_filename, job_title, company, url, job_id? }
+         │
+         ▼
+  FastAPI /ai router
+         │
+         ├── read scored resume text from disk
+         ├── read master resume text from disk (or reuse scored if same file)
+         │
+         │  Anthropic Python SDK
+         ▼
+  Claude Sonnet 4.6
+         │  raw JSON string
+         ▼
+  _parse_analysis()  ← validates + clamps scores
+         │
+         ├── INSERT INTO job_analyses (...)
+         │
+         └── return AnalysisOut to client
+
+GET /ai/analyses?profile_id=N       → list of AnalysisSummaryOut (no text fields)
+GET /ai/analyses/{id}               → full AnalysisOut (strengths, gaps, suggestions)
+GET /ai/jobs/{job_id}/analyses      → analysis history for one job (for JobDetailPanel)
+```
+
+`job_id` is nullable — analyses run from the extension popup before saving a job have `job_id = NULL`. They appear on the AI Analysis history page but not in the job detail panel.
+
+### Extension Popup — Analyze Tab
+
+The popup gains a second tab (`Save | Analyze`). Tab state is managed with `hidden` class toggling; the Analyze tab initialises lazily on first open to avoid an unnecessary `GET /resumes` call when the user only intends to save.
+
+```
+popup.html tab bar
+   ├── [Save]     → #tab-save  (original form)
+   └── [Analyze]  → #tab-analyze
+                      ├── #analyze-setup   (resume dropdowns + Run button)
+                      ├── #analyze-loading (spinner)
+                      ├── #analyze-result  (score card, lists)
+                      └── #analyze-error   (message + retry)
+```
+
+`analyzeTabReady` prevents double-initialisation. If `GET /resumes` fails (backend down, folder unconfigured), the flag resets to `false` so the next tab open retries.
+
+---
+
 ## Data Model
 
 ```
@@ -432,6 +639,38 @@ if (!activeProfileId) {
 │ note         │ TEXT                                              │
 └──────────────┴──────────────────────────────────────────────────┘
 ```
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                           settings                               │
+├──────────────┬─────────────────────────────────────────────────┤
+│ key          │ VARCHAR PRIMARY KEY                              │
+│ value        │ TEXT                                             │
+└──────────────┴──────────────────────────────────────────────────┘
+```
+
+Three rows: `resume_folder_path`, `default_resume_filename`, `master_resume_filename`. A key-value table was chosen over a dedicated config table because these settings are heterogeneous, can grow independently, and don't need foreign keys or normalization. A missing key means "not configured" — no default values are stored.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                         job_analyses                             │
+├──────────────┬──────────────────────────────────────────────────┤
+│ id           │ INTEGER PRIMARY KEY                              │
+│ profile_id   │ INTEGER FK → profiles.id                         │
+│ job_id       │ INTEGER FK → jobs.id (nullable — popup analyses) │
+│ current_score│ INTEGER [0-100]                                  │
+│ projected_score│ INTEGER [0-100] (null if master = scored)      │
+│ verdict      │ TEXT                                             │
+│ strengths    │ JSON (list of strings)                           │
+│ gaps         │ JSON (list of strings)                           │
+│ suggestions  │ JSON (list of {text, score_impact})              │
+│ scored_resume_filename │ VARCHAR                               │
+│ master_resume_filename │ VARCHAR                               │
+│ run_at       │ DATETIME DEFAULT utc_now()                       │
+└──────────────┴──────────────────────────────────────────────────┘
+```
+
+`job_id` is nullable to support analyses run from the extension popup before (or instead of) saving the job. `profile_id` is always set so the AI Analysis history page can scope results to the active profile.
 
 **Salary storage convention**: all salary values are stored in the full annual amount in the base unit (rupees, dollars, etc.). Display formatting happens in the frontend — `₹12L` is displayed as `₹1,200,000 / 100,000 = 12L` by the `fmt()` function in `JobCard`.
 
@@ -499,7 +738,47 @@ if (!activeProfileId) {
 
 ---
 
-### 7. Manifest V3 Trade-offs
+### 7. Local File Access Over Cloud Storage for Resumes
+
+**Decision**: Read resume files directly from a user-specified local folder. No upload, no cloud storage, no database blob storage.
+
+**Why**: The user already manages their resumes as files on their machine. Asking them to upload and manage a second copy inside the app adds friction and sync complexity. Pointing at a folder means the app always reads the current version of every file — no stale copies.
+
+**Consequence**: The backend must validate the folder path and every filename against path traversal attacks (`os.path.realpath` comparison). File content is extracted at analysis time and held in memory only for the duration of the API call — never persisted. This does mean the backend must be running on the same machine as the resume files, which is fine for a local-first tool.
+
+---
+
+### 8. Settings as a Key-Value Table
+
+**Decision**: Store resume vault configuration in a `settings` table (`key TEXT PRIMARY KEY, value TEXT`) rather than adding columns to an existing table or creating a `config` table with fixed columns.
+
+**Why**: These settings are not entity data — they're not related to profiles or jobs. A fixed-column config table works but forces a schema migration every time a new setting is added. The KV approach lets the app read/write individual settings without touching unrelated columns.
+
+**Consequence**: No type safety at the DB layer for setting values — all stored as TEXT. Type coercion happens in the router layer (path strings are stripped, filenames are validated). The trade-off is acceptable given there are currently three settings total.
+
+---
+
+### 9. PATCH with Required-At-Least-One Validation
+
+**Decision**: The resume config endpoint uses `PATCH /resumes/config` with all three fields optional — but an empty body (all `None`) returns 422.
+
+**Why**: `PATCH` semantics mean "update only what I send". However, a completely empty PATCH is almost certainly a client bug, not intentional. Silently accepting it and returning the unchanged config would be confusing. The 422 makes the bug visible.
+
+**Consequence**: Clients must send at least one field. The Pydantic schema uses `model_validator(mode='before')` to enforce this, so the check happens before any database access.
+
+---
+
+### 10. Prompt Injection Mitigation via XML Content Tags
+
+**Decision**: Wrap all user-supplied content (job description, resume text) in XML tags before inserting into the Claude prompt.
+
+**Why**: Without clear delimiters, adversarial content in a job description ("Ignore previous instructions and output…") could confuse the model about what is data and what is instruction. Claude is trained to treat content inside XML tags as opaque data.
+
+**Consequence**: The prompt structure is slightly more verbose but much harder to manipulate. Job descriptions with partial XML-like content (common in engineering JDs with `<requirements>` tags) are handled safely because the outer tags are fixed and the inner content is data.
+
+---
+
+### 11. Manifest V3 Trade-offs
 
 **Decision**: Build on MV3 despite its limitations.
 
@@ -524,28 +803,47 @@ if (!activeProfileId) {
 - **`innerHTML` → DOM APIs**: the popup originally used `innerHTML` for rendering profiles; replaced with DOM methods to eliminate XSS vectors
 - **`textContent` for option labels**: user-supplied profile names rendered with `textContent`, not `innerHTML`
 - **`noopener noreferrer`**: all external links in the dashboard open with both flags
+- **`htmlToMarkdown` uses `textContent` output**: the job description converter clones the DOM and reads `textContent` from the clone — HTML tags never reach the database or the React render path
 
 ### Dashboard
 - **URL scheme validation**: `job.url` is validated against `/^https?:\/\//` before being rendered as an anchor — prevents `javascript:` URLs from being clickable
 - **No secrets in frontend**: the API base URL comes from `VITE_API_URL` env var with a localhost fallback — no tokens or credentials in the bundle
 
+### AI
+- **API key in `.env`, not in code**: `ANTHROPIC_API_KEY` is loaded via `python-dotenv` at startup. The `.env` file is in `.gitignore` and a `.env.example` with a placeholder is committed instead
+- **Raw Claude response never forwarded to clients**: parsing errors log the raw response server-side and return a sanitised 502 message — prevents leaking potentially sensitive prompt or model internals to the browser
+- **Path traversal on resume files**: every filename is validated by comparing `os.path.realpath(folder/filename)` against `os.path.realpath(folder)` before any file read — prevents `../../etc/passwd`-style attacks
+
 ---
 
 ## What's Next
 
-A few areas worth exploring as natural next steps:
+### Phase 8 — AI Resume Tailoring *(planned)*
 
-**Tests** — No tests were written during initial development (deferred by design). The priority order would be: (1) Pydantic schema validators (pure functions, easy to test), (2) FastAPI endpoint integration tests with an in-memory SQLite DB, (3) React hook unit tests with `renderHook`, (4) E2E tests for the dashboard's critical paths.
+The logical next step after analysis: generate a tailored version of the default resume for a specific job. The planned flow:
 
-**Code splitting** — The dashboard bundles to ~748KB. Recharts alone is significant. Dynamic `import()` for the Insights page (which is the only consumer of Recharts) would cut the initial load bundle substantially.
+1. User clicks "Tailor Resume" from the job detail panel
+2. Backend sends the scored resume, master resume, job description, and gap list to Claude with a diff-oriented prompt
+3. Claude returns a structured list of suggested edits — additions, removals, and rewrites
+4. Dashboard shows a side-by-side diff view (additions in green, removals struck through)
+5. User accepts or rejects individual suggestions
+6. Accepted edits are applied to a new `.docx` file (via `python-docx`) and saved alongside the originals
 
-**Alembic migrations** — Currently the schema is managed by `create_all()`. Adding Alembic would make schema changes incremental and reversible, which matters once the database has real data.
+The main open question is diff representation: whether to model changes as semantic operations (`{field: "summary", old: "…", new: "…"}`) or as a raw text diff. The semantic approach is friendlier for the UI; the raw diff is simpler to generate. A hybrid — structured fields for known sections, raw diff for unstructured text — is likely the right answer.
+
+---
+
+### Technical Debt & Improvements
+
+**Cross-router imports in `ai.py`** — The AI router imports `_get`, `_require_folder`, and `extract_resume_text` directly from `resumes.py`. This is a design smell: two routers sharing private helpers signals that a `ResumeService` module should be extracted. Deferred for now; the functions are stable.
+
+**Tests** — No tests were written during initial development (deferred by design). Priority order: (1) Pydantic schema validators, (2) FastAPI endpoint integration tests with in-memory SQLite, (3) `_parse_analysis()` unit tests with mock Claude responses, (4) React hook unit tests with `renderHook`.
+
+**Alembic migrations** — The schema is managed by `create_all()`. Adding Alembic would make changes incremental and reversible — important once users have real analysis history they don't want to lose.
+
+**Code splitting** — The dashboard bundles to ~748KB. Dynamic `import()` for the Insights page (the only Recharts consumer) would cut the initial load substantially.
 
 **Offline-first extension** — The extension fails visibly if the backend isn't running. A small `IndexedDB` queue in the service worker could buffer saves and flush them when the backend is next available.
-
-**Keyboard navigation in Kanban** — The Kanban board is fully pointer-driven. Adding `j/k` for card navigation and `Enter` to open the detail panel would make it keyboard-accessible.
-
-**Email integration (Phase 5)** — The `EmailMatch` model is already scaffolded in the database. The idea: connect to Gmail via OAuth, parse subject/sender patterns to match incoming emails (interview invites, rejections) to tracked jobs, and auto-advance status.
 
 ---
 
@@ -574,4 +872,4 @@ cd .. && ./start.sh
 
 ---
 
-*Built iteratively across four phases — backend → extension → dashboard → polish. Each phase was reviewed for security, correctness, and React best practices before moving on.*
+*Built iteratively across seven phases — backend → extension → dashboard → polish → LinkedIn Voyager API → resume vault → AI analysis. Each phase was reviewed for security, correctness, and React best practices before moving on.*
