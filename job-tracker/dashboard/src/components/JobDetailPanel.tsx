@@ -37,6 +37,7 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
   const [showAnalyzeSetup, setShowAnalyzeSetup] = useState(true);
   const [showStrengths, setShowStrengths] = useState(false);
   const [showGaps, setShowGaps] = useState(false);
+  const [showJobDesc, setShowJobDesc] = useState(false);
 
   useEffect(() => {
     if (!job || job.id === prevJobIdRef.current) return;
@@ -259,6 +260,24 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
               placeholder="Notes auto-save on blur…"
             />
           </Field>
+
+          {/* Job Description */}
+          {job.job_description && (
+            <Field label="Job Description">
+              <button
+                onClick={() => setShowJobDesc((v) => !v)}
+                className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1 mb-1"
+              >
+                <span>{showJobDesc ? '▾' : '▸'}</span>
+                {showJobDesc ? 'Hide' : 'Show'} description
+              </button>
+              {showJobDesc && (
+                <pre className="text-xs text-gray-300 whitespace-pre-wrap bg-gray-800 rounded p-2 max-h-48 overflow-y-auto">
+                  {job.job_description}
+                </pre>
+              )}
+            </Field>
+          )}
 
           {/* Status timeline */}
           {job.status_history && job.status_history.length > 0 && (
