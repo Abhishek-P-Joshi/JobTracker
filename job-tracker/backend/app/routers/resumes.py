@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppSettings
-from ..schemas import ResumeConfig, ResumeConfigUpdate, ResumeFilenameUpdate, ResumeFileOut, ResumeTextOut
+from ..schemas import ResumeConfig, ResumeConfigUpdate, ResumeFileOut, ResumeTextOut
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 
@@ -104,11 +104,26 @@ def get_config(db: Session = Depends(get_db)):
 
 
 @router.put("/config", response_model=ResumeConfig)
-def set_folder(data: ResumeConfigUpdate, db: Session = Depends(get_db)):
-    path = data.folder_path.strip()
-    if not os.path.isdir(path):
-        raise HTTPException(status_code=400, detail=f"Path does not exist or is not a directory: {path}")
-    _set(db, "resume_folder_path", path)
+def update_config(data: ResumeConfigUpdate, db: Session = Depends(get_db)):
+    if data.folder_path is not None:
+        path = data.folder_path.strip()
+        if not os.path.isdir(path):
+            raise HTTPException(status_code=400, detail=f"Path does not exist or is not a directory: {path}")
+        _set(db, "resume_folder_path", path)
+
+    if data.master_resume is not None or data.default_resume is not None:
+        folder = _require_folder(db)
+        if data.master_resume is not None:
+            resolved = _validate_resume_filename(folder, data.master_resume)
+            if not os.path.isfile(resolved):
+                raise HTTPException(status_code=404, detail=f"File not found in resume folder: {data.master_resume}")
+            _set(db, "master_resume_filename", data.master_resume)
+        if data.default_resume is not None:
+            resolved = _validate_resume_filename(folder, data.default_resume)
+            if not os.path.isfile(resolved):
+                raise HTTPException(status_code=404, detail=f"File not found in resume folder: {data.default_resume}")
+            _set(db, "default_resume_filename", data.default_resume)
+
     return _get_config(db)
 
 
@@ -139,24 +154,6 @@ def list_resumes(db: Session = Depends(get_db)):
             is_default=(name == default),
         ))
     return files
-
-
-@router.put("/master", status_code=204)
-def set_master(data: ResumeFilenameUpdate, db: Session = Depends(get_db)):
-    folder = _require_folder(db)
-    path = _validate_resume_filename(folder, data.filename)
-    if not os.path.isfile(path):
-        raise HTTPException(status_code=404, detail=f"File not found in resume folder: {data.filename}")
-    _set(db, "master_resume_filename", data.filename)
-
-
-@router.put("/default", status_code=204)
-def set_default(data: ResumeFilenameUpdate, db: Session = Depends(get_db)):
-    folder = _require_folder(db)
-    path = _validate_resume_filename(folder, data.filename)
-    if not os.path.isfile(path):
-        raise HTTPException(status_code=404, detail=f"File not found in resume folder: {data.filename}")
-    _set(db, "default_resume_filename", data.filename)
 
 
 @router.get("/read", response_model=ResumeTextOut)

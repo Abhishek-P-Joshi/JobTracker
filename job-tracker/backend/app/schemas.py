@@ -198,11 +198,9 @@ class ResumeConfig(BaseModel):
 
 
 class ResumeConfigUpdate(BaseModel):
-    folder_path: str = Field(..., min_length=1, max_length=4096)
-
-
-class ResumeFilenameUpdate(BaseModel):
-    filename: str = Field(..., min_length=1, max_length=255)
+    folder_path: Optional[str] = Field(None, min_length=1, max_length=4096)
+    master_resume: Optional[str] = Field(None, min_length=1, max_length=255)
+    default_resume: Optional[str] = Field(None, min_length=1, max_length=255)
 
 
 class ResumeFileOut(BaseModel):
