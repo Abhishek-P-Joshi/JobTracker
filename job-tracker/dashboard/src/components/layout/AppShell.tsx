@@ -5,6 +5,7 @@ import AddJobModal from '../AddJobModal';
 import KeyboardShortcutsHelp from '../KeyboardShortcutsHelp';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useProfile } from '../../hooks/useProfile';
+import { useAppSettingsStore } from '../../store/appSettingsStore';
 import { api } from '../../api/client';
 
 const NAV = [
@@ -19,11 +20,12 @@ export default function AppShell() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const { activeProfileId } = useProfile();
+  const shortcutsEnabled = useAppSettingsStore((s) => s.shortcutsEnabled);
 
   useKeyboardShortcuts({
     onAddJob: () => { if (activeProfileId) setShowAddModal(true); },
     onShowHelp: () => setShowHelp((v) => !v),
-    disabled: showAddModal || showHelp,
+    disabled: !shortcutsEnabled || showAddModal || showHelp,
   });
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function AppShell() {
             className="flex items-center gap-2 w-full px-3 py-2 rounded-md bg-brand hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
           >
             <span className="text-base leading-none">+</span> Add Job
-            <kbd className="ml-auto text-xs opacity-60 font-mono">N</kbd>
+            {shortcutsEnabled && <kbd className="ml-auto text-xs opacity-60 font-mono">N</kbd>}
           </button>
         </div>
 

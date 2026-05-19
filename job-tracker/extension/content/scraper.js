@@ -80,12 +80,12 @@ if (typeof scrapeIndeed === 'function')   SITE_SCRAPERS['indeed.com']   = scrape
 if (typeof scrapeGreenhouse === 'function') SITE_SCRAPERS['greenhouse.io'] = scrapeGreenhouse;
 /* eslint-enable no-undef */
 
-function runScraper() {
+async function runScraper() {
   const hostname = window.location.hostname;
   for (const [domain, fn] of Object.entries(SITE_SCRAPERS)) {
     if (hostname.includes(domain)) {
       try {
-        const raw = fn();
+        const raw = await fn();
         const { workTypeHint, description, salaryRaw, ...rest } = raw;
         const salary = parseSalary(salaryRaw);
         return {
@@ -108,7 +108,9 @@ function runScraper() {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'SCRAPE_JOB') {
-    const data = runScraper();
-    sendResponse(data ? { success: true, data } : { success: false });
+    runScraper()
+      .then((data) => sendResponse(data ? { success: true, data } : { success: false }))
+      .catch(() => sendResponse({ success: false }));
+    return true; // keep message channel open for async response
   }
 });

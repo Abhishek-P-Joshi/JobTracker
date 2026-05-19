@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useProfileStore } from '../store/profileStore';
 import { useProfile } from '../hooks/useProfile';
+import { useAppSettingsStore } from '../store/appSettingsStore';
 import { api } from '../api/client';
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -17,6 +18,7 @@ function downloadBlob(blob: Blob, filename: string) {
 export default function Settings() {
   const { profiles, updateProfile, removeProfile, loadProfiles } = useProfileStore();
   const { activeProfileId } = useProfile();
+  const { shortcutsEnabled, toggleShortcuts } = useAppSettingsStore();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
@@ -193,6 +195,33 @@ export default function Settings() {
                 {importMsg}
               </p>
             )}
+          </div>
+        </section>
+
+        {/* Preferences */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-300 mb-3">Preferences</h2>
+          <div className="card p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-200">Keyboard shortcuts</p>
+                <p className="text-xs text-gray-600">N to add job, ? for help</p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={shortcutsEnabled}
+                onClick={toggleShortcuts}
+                className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${
+                  shortcutsEnabled ? 'bg-brand' : 'bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ${
+                    shortcutsEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </section>
 
