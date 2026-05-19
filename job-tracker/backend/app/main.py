@@ -4,7 +4,7 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
-from .routers import profiles, jobs, analytics, export, resumes
+from .routers import profiles, jobs, analytics, export, resumes, ai
 
 Base.metadata.create_all(bind=engine)
 
@@ -26,6 +26,7 @@ app.include_router(jobs.router)
 app.include_router(analytics.router)
 app.include_router(export.router)
 app.include_router(resumes.router)
+app.include_router(ai.router)
 
 
 @app.get("/")

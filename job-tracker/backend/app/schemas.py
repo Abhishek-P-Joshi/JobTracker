@@ -219,3 +219,64 @@ class ResumeTextOut(BaseModel):
     filename: str
     text: str
     char_count: int
+
+
+# ── AI Analysis ────────────────────────────────────────────────────────────────
+
+class AnalyzeRequest(BaseModel):
+    profile_id: int
+    job_description: str = Field(..., min_length=1, max_length=50_000)
+    scored_resume_filename: str = Field(..., min_length=1, max_length=255)
+    master_resume_filename: str = Field(..., min_length=1, max_length=255)
+    job_title: Optional[str] = Field(None, max_length=200)
+    company: Optional[str] = Field(None, max_length=200)
+    url: Optional[str] = Field(None, max_length=2048)
+    job_id: Optional[int] = None
+
+    @field_validator("job_description")
+    @classmethod
+    def jd_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("job_description must not be blank or whitespace-only")
+        return v
+
+
+class Suggestion(BaseModel):
+    text: str
+    score_impact: int
+
+
+class AnalysisOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    profile_id: int
+    job_id: Optional[int] = None
+    job_title: Optional[str] = None
+    company: Optional[str] = None
+    url: Optional[str] = None
+    job_description: str
+    scored_resume_filename: str
+    master_resume_filename: str
+    is_single_mode: bool
+    current_score: int
+    projected_score: Optional[int] = None
+    strengths: list[str] = []
+    gaps: list[str] = []
+    suggestions: list[Suggestion] = []
+    verdict: Optional[str] = None
+    run_at: datetime
+
+
+class AnalysisSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    job_id: Optional[int] = None
+    job_title: Optional[str] = None
+    company: Optional[str] = None
+    scored_resume_filename: str
+    current_score: int
+    projected_score: Optional[int] = None
+    verdict: Optional[str] = None
+    run_at: datetime

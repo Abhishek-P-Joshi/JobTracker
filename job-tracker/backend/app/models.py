@@ -1,5 +1,6 @@
 from datetime import datetime, date, UTC
-from sqlalchemy import Integer, String, Text, Date, DateTime, ForeignKey, UniqueConstraint, event
+from typing import Optional
+from sqlalchemy import Integer, String, Text, Date, DateTime, Boolean, ForeignKey, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
@@ -76,6 +77,31 @@ class AppSettings(Base):
     key:        Mapped[str]      = mapped_column(String, nullable=False, unique=True)
     value:      Mapped[str|None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class JobAnalysis(Base):
+    __tablename__ = "job_analyses"
+
+    id                     : Mapped[int]           = mapped_column(Integer, primary_key=True, autoincrement=True)
+    profile_id             : Mapped[int]           = mapped_column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
+    job_id                 : Mapped[int | None]    = mapped_column(Integer, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)
+    job_title              : Mapped[str | None]    = mapped_column(String, nullable=True)
+    company                : Mapped[str | None]    = mapped_column(String, nullable=True)
+    url                    : Mapped[str | None]    = mapped_column(String, nullable=True)
+    job_description        : Mapped[str]           = mapped_column(Text, nullable=False)
+    scored_resume_filename : Mapped[str]           = mapped_column(String, nullable=False)
+    master_resume_filename : Mapped[str]           = mapped_column(String, nullable=False)
+    is_single_mode         : Mapped[bool]          = mapped_column(Boolean, default=False, nullable=False)
+    current_score          : Mapped[int]           = mapped_column(Integer, nullable=False)
+    projected_score        : Mapped[int | None]    = mapped_column(Integer, nullable=True)
+    strengths_json         : Mapped[str | None]    = mapped_column(Text, nullable=True)
+    gaps_json              : Mapped[str | None]    = mapped_column(Text, nullable=True)
+    suggestions_json       : Mapped[str | None]    = mapped_column(Text, nullable=True)
+    verdict                : Mapped[str | None]    = mapped_column(String, nullable=True)
+    run_at                 : Mapped[datetime]      = mapped_column(DateTime, default=utc_now)
+
+    profile : Mapped["Profile"]          = relationship("Profile")
+    job     : Mapped[Optional["Job"]]    = relationship("Job")
 
 
 # TODO (low): EmailMatch is scaffolded for future email integration but has no
