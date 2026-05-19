@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useJob, useUpdateJob, useDeleteJob } from '../hooks/useJobs';
-import type { Job, Status, WorkType } from '../types';
+import type { Job, Status, WorkType, ResumeFile, JobAnalysis } from '../types';
 import { STATUS_ORDER, STATUS_LABELS, STATUS_COLORS, WORK_TYPE_LABELS } from '../types';
+import { api } from '../api/client';
 
 interface Props {
   jobId: number;
@@ -26,11 +27,45 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const prevJobIdRef = useRef<number | null>(null);
 
+  // AI Analysis state
+  const [resumes, setResumes] = useState<ResumeFile[]>([]);
+  const [scoredResume, setScoredResume] = useState('');
+  const [masterResume, setMasterResume] = useState('');
+  const [analysis, setAnalysis] = useState<JobAnalysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState('');
+  const [showAnalyzeSetup, setShowAnalyzeSetup] = useState(true);
+  const [showStrengths, setShowStrengths] = useState(false);
+  const [showGaps, setShowGaps] = useState(false);
+
   useEffect(() => {
-    if (job && job.id !== prevJobIdRef.current) {
-      prevJobIdRef.current = job.id;
-      setForm(job);
-    }
+    if (!job || job.id === prevJobIdRef.current) return;
+    prevJobIdRef.current = job.id;
+    setForm(job);
+    setAnalysis(null);
+    setShowAnalyzeSetup(true);
+
+    let cancelled = false;
+
+    api.listResumes().then((files) => {
+      if (cancelled) return;
+      setResumes(files);
+      setScoredResume(files.find((f) => f.is_default)?.filename ?? files[0]?.filename ?? '');
+      setMasterResume(files.find((f) => f.is_master)?.filename ?? files[0]?.filename ?? '');
+    }).catch(() => {});
+
+    api.getJobAnalysisHistory(job.id).then((history) => {
+      if (cancelled) return;
+      if (history.length > 0) {
+        api.getAnalysis(history[0].id).then((full) => {
+          if (cancelled) return;
+          setAnalysis(full);
+          setShowAnalyzeSetup(false);
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
   }, [job]);
 
   useEffect(() => {
@@ -55,6 +90,34 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
   };
 
   const safeUrl = /^https?:\/\//i.test(job?.url ?? '') ? job?.url : null;
+
+  const scoreBadgeClass = (score: number) =>
+    score >= 75 ? 'text-green-400' : score >= 50 ? 'text-amber-400' : 'text-red-400';
+
+  const handleAnalyze = async () => {
+    if (!job || !job.job_description || !scoredResume || !masterResume) return;
+    setAnalyzing(true);
+    setAnalyzeError('');
+    try {
+      const result = await api.analyzeJob({
+        profile_id: job.profile_id,
+        job_description: job.job_description,
+        scored_resume_filename: scoredResume,
+        master_resume_filename: masterResume,
+        job_title: job.title,
+        company: job.company,
+        url: job.url ?? undefined,
+        job_id: job.id,
+      });
+      setAnalysis(result);
+      setShowAnalyzeSetup(false);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setAnalyzeError(msg ?? 'Analysis failed. Check backend logs.');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   if (isPending || !job) {
     return (
@@ -215,6 +278,101 @@ export default function JobDetailPanel({ jobId, onClose }: Props) {
                 })}
               </div>
             </Field>
+          )}
+        </div>
+
+        {/* AI Analysis */}
+        <div className="border-t border-gray-800 px-5 py-4 space-y-3">
+          <p className="text-xs text-gray-500 uppercase tracking-wider">AI Analysis</p>
+
+          {!job.job_description && (
+            <p className="text-xs text-gray-600">No job description saved — re-import from LinkedIn to run analysis.</p>
+          )}
+
+          {job.job_description && (showAnalyzeSetup || !analysis) && (
+            <div className="space-y-2">
+              {resumes.length > 0 ? (
+                <>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Resume to score</p>
+                    <select value={scoredResume} onChange={(e) => setScoredResume(e.target.value)} className="select text-xs">
+                      {resumes.map((f) => <option key={f.filename} value={f.filename}>{f.filename}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Master resume</p>
+                    <select value={masterResume} onChange={(e) => setMasterResume(e.target.value)} className="select text-xs">
+                      {resumes.map((f) => <option key={f.filename} value={f.filename}>{f.filename}</option>)}
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-600">Configure your resume folder in Settings first.</p>
+              )}
+              {analyzeError && <p className="text-xs text-red-400">{analyzeError}</p>}
+              <button
+                onClick={handleAnalyze}
+                disabled={analyzing || resumes.length === 0 || !scoredResume || !masterResume}
+                className="btn-primary text-xs py-1.5 w-full disabled:opacity-40"
+              >
+                {analyzing ? 'Analyzing… this may take a few seconds' : 'Analyze Match'}
+              </button>
+            </div>
+          )}
+
+          {analysis && !showAnalyzeSetup && (
+            <div className="space-y-3">
+              <div className="flex items-baseline gap-2">
+                <span className={`text-2xl font-bold ${scoreBadgeClass(analysis.current_score)}`}>{analysis.current_score}</span>
+                <span className="text-xs text-gray-500">/ 100</span>
+                {analysis.projected_score != null && (
+                  <span className="text-xs text-gray-500">→ {analysis.projected_score} projected</span>
+                )}
+              </div>
+              {analysis.verdict && <p className="text-xs text-gray-400 italic">{analysis.verdict}</p>}
+
+              {analysis.strengths.length > 0 && (
+                <div>
+                  <button onClick={() => setShowStrengths((v) => !v)} className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1">
+                    <span>{showStrengths ? '▾' : '▸'}</span> Strengths ({analysis.strengths.length})
+                  </button>
+                  {showStrengths && (
+                    <ul className="mt-1 space-y-0.5 pl-3">
+                      {analysis.strengths.map((s, i) => <li key={i} className="text-xs text-gray-300">✓ {s}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {analysis.gaps.length > 0 && (
+                <div>
+                  <button onClick={() => setShowGaps((v) => !v)} className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1">
+                    <span>{showGaps ? '▾' : '▸'}</span> Gaps ({analysis.gaps.length})
+                  </button>
+                  {showGaps && (
+                    <ul className="mt-1 space-y-0.5 pl-3">
+                      {analysis.gaps.map((g, i) => <li key={i} className="text-xs text-gray-300">✗ {g}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {analysis.suggestions.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500">Suggestions</p>
+                  {analysis.suggestions.map((s, i) => (
+                    <p key={i} className="text-xs text-gray-300">• {s.text}{s.score_impact > 0 ? ` (+${s.score_impact} pts)` : ''}</p>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-gray-600">
+                Scored: {analysis.scored_resume_filename} · {new Date(analysis.run_at).toLocaleString()}
+              </p>
+              <button onClick={() => setShowAnalyzeSetup(true)} className="text-xs text-gray-500 hover:text-gray-300">
+                Re-analyze
+              </button>
+            </div>
           )}
         </div>
 

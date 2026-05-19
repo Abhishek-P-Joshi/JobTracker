@@ -20,113 +20,168 @@
       </div>
     </header>
 
-    <!-- Status hint -->
-    <div id="scrape-hint" class="hint hint--info" role="status">
-      Checking page…
+    <!-- Tab bar -->
+    <div class="tab-bar" role="tablist">
+      <button class="tab-btn tab-btn--active" data-tab="save" role="tab" aria-selected="true" aria-controls="tab-save">Save</button>
+      <button class="tab-btn" data-tab="analyze" role="tab" aria-selected="false" aria-controls="tab-analyze">Analyze</button>
     </div>
 
-    <!-- Form -->
-    <form id="job-form" class="form" autocomplete="off" novalidate>
+    <!-- ── Save tab ─────────────────────────────────────────── -->
+    <div id="tab-save" role="tabpanel">
 
-      <div class="field">
-        <label for="company">Company <span class="req">*</span></label>
-        <input id="company" type="text" placeholder="e.g. Acme Corp" />
+      <!-- Status hint -->
+      <div id="scrape-hint" class="hint hint--info" role="status">
+        Checking page…
       </div>
 
-      <div class="field">
-        <label for="title">Job Title <span class="req">*</span></label>
-        <input id="title" type="text" placeholder="e.g. Senior Engineer" />
-      </div>
+      <!-- Form -->
+      <form id="job-form" class="form" autocomplete="off" novalidate>
 
-      <div class="field">
-        <label for="location">Location</label>
-        <input id="location" type="text" placeholder="e.g. Bengaluru / Remote" />
-      </div>
-
-      <div class="row-2">
         <div class="field">
-          <label for="work_type">Work Type</label>
-          <select id="work_type">
-            <option value="unknown">Unknown</option>
-            <option value="remote">Remote</option>
-            <option value="hybrid">Hybrid</option>
-            <option value="onsite">On-site</option>
-          </select>
+          <label for="company">Company <span class="req">*</span></label>
+          <input id="company" type="text" placeholder="e.g. Acme Corp" />
+        </div>
+
+        <div class="field">
+          <label for="title">Job Title <span class="req">*</span></label>
+          <input id="title" type="text" placeholder="e.g. Senior Engineer" />
+        </div>
+
+        <div class="field">
+          <label for="location">Location</label>
+          <input id="location" type="text" placeholder="e.g. Bengaluru / Remote" />
+        </div>
+
+        <div class="row-2">
+          <div class="field">
+            <label for="work_type">Work Type</label>
+            <select id="work_type">
+              <option value="unknown">Unknown</option>
+              <option value="remote">Remote</option>
+              <option value="hybrid">Hybrid</option>
+              <option value="onsite">On-site</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="status">Status</label>
+            <select id="status">
+              <option value="wishlist">Wishlist</option>
+              <option value="applied">Applied</option>
+              <option value="screening">Screening</option>
+              <option value="interview">Interview</option>
+              <option value="offer">Offer</option>
+              <option value="rejected">Rejected</option>
+              <option value="ghosted">Ghosted</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row-3">
+          <div class="field">
+            <label for="salary_min">Salary Min</label>
+            <input id="salary_min" type="number" placeholder="e.g. 800000" min="0" />
+          </div>
+          <div class="field">
+            <label for="salary_max">Salary Max</label>
+            <input id="salary_max" type="number" placeholder="e.g. 1200000" min="0" />
+          </div>
+          <div class="field">
+            <label for="currency">Currency</label>
+            <select id="currency">
+              <option value="INR">INR</option>
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="EUR">EUR</option>
+              <option value="CAD">CAD</option>
+              <option value="SGD">SGD</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row-2">
+          <div class="field">
+            <label for="source">Source</label>
+            <select id="source">
+              <option value="">— manual —</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="naukri">Naukri</option>
+              <option value="indeed">Indeed</option>
+              <option value="greenhouse">Greenhouse</option>
+              <option value="lever">Lever</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="applied_date">Applied Date</label>
+            <input id="applied_date" type="date" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="url">Listing URL</label>
+          <input id="url" type="url" placeholder="https://…" />
+        </div>
+
+        <div class="field">
+          <label for="notes">Notes</label>
+          <textarea id="notes" rows="2" placeholder="Referral, interview prep notes…"></textarea>
+        </div>
+
+        <!-- Hidden — populated by scraper -->
+        <textarea id="job_description" style="display:none"></textarea>
+
+      </form>
+
+      <!-- Actions -->
+      <div class="actions">
+        <button id="save-btn" type="button" class="btn btn--primary">Save Job</button>
+      </div>
+
+    </div><!-- /#tab-save -->
+
+    <!-- ── Analyze tab ───────────────────────────────────────── -->
+    <div id="tab-analyze" class="hidden analyze-pane" role="tabpanel">
+
+      <!-- Setup (resume selectors + run button) -->
+      <div id="analyze-setup">
+        <div class="field">
+          <label for="scored-resume-select">Resume to score</label>
+          <select id="scored-resume-select"><option value="">Loading…</option></select>
         </div>
         <div class="field">
-          <label for="status">Status</label>
-          <select id="status">
-            <option value="wishlist">Wishlist</option>
-            <option value="applied">Applied</option>
-            <option value="screening">Screening</option>
-            <option value="interview">Interview</option>
-            <option value="offer">Offer</option>
-            <option value="rejected">Rejected</option>
-            <option value="ghosted">Ghosted</option>
-          </select>
+          <label for="master-resume-select">Master resume</label>
+          <select id="master-resume-select"><option value="">Loading…</option></select>
         </div>
+        <p id="analyze-notice" class="analyze-notice hidden"></p>
+        <button id="run-analysis-btn" class="btn btn--primary" disabled>Run Analysis</button>
       </div>
 
-      <div class="row-3">
-        <div class="field">
-          <label for="salary_min">Salary Min</label>
-          <input id="salary_min" type="number" placeholder="e.g. 800000" min="0" />
-        </div>
-        <div class="field">
-          <label for="salary_max">Salary Max</label>
-          <input id="salary_max" type="number" placeholder="e.g. 1200000" min="0" />
-        </div>
-        <div class="field">
-          <label for="currency">Currency</label>
-          <select id="currency">
-            <option value="INR">INR</option>
-            <option value="USD">USD</option>
-            <option value="GBP">GBP</option>
-            <option value="EUR">EUR</option>
-            <option value="CAD">CAD</option>
-            <option value="SGD">SGD</option>
-          </select>
-        </div>
+      <!-- Loading -->
+      <div id="analyze-loading" class="hidden">
+        <p class="analyze-notice">Analyzing… this may take a few seconds.</p>
       </div>
 
-      <div class="row-2">
-        <div class="field">
-          <label for="source">Source</label>
-          <select id="source">
-            <option value="">— manual —</option>
-            <option value="linkedin">LinkedIn</option>
-            <option value="naukri">Naukri</option>
-            <option value="indeed">Indeed</option>
-            <option value="greenhouse">Greenhouse</option>
-            <option value="lever">Lever</option>
-            <option value="other">Other</option>
-          </select>
+      <!-- Result -->
+      <div id="analyze-result" class="hidden">
+        <div class="score-card">
+          <span id="result-score" class="score-number"></span>
+          <span class="score-denom">/ 100</span>
+          <span id="result-projected" class="score-projected"></span>
         </div>
-        <div class="field">
-          <label for="applied_date">Applied Date</label>
-          <input id="applied_date" type="date" />
-        </div>
+        <p id="result-verdict" class="verdict-text"></p>
+        <div id="result-strengths" class="result-section"></div>
+        <div id="result-gaps" class="result-section"></div>
+        <div id="result-suggestions" class="result-section"></div>
+        <button id="re-analyze-btn" class="btn-ghost">Re-analyze</button>
       </div>
 
-      <div class="field">
-        <label for="url">Listing URL</label>
-        <input id="url" type="url" placeholder="https://…" />
+      <!-- Error -->
+      <div id="analyze-error" class="hidden">
+        <p id="analyze-error-msg" class="analyze-error"></p>
+        <button id="analyze-retry-btn" class="btn-ghost" style="margin-top:8px">Try again</button>
       </div>
 
-      <div class="field">
-        <label for="notes">Notes</label>
-        <textarea id="notes" rows="2" placeholder="Referral, interview prep notes…"></textarea>
-      </div>
-
-      <!-- Hidden — populated by scraper -->
-      <textarea id="job_description" style="display:none"></textarea>
-
-    </form>
-
-    <!-- Actions -->
-    <div class="actions">
-      <button id="save-btn" type="button" class="btn btn--primary">Save Job</button>
-    </div>
+    </div><!-- /#tab-analyze -->
 
     <!-- Footer -->
     <footer class="footer">

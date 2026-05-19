@@ -13,6 +13,9 @@ import type {
   WorkTypePoint,
   ResumeConfig,
   ResumeFile,
+  JobAnalysis,
+  AnalysisSummary,
+  AnalyzeRequest,
 } from '../types';
 
 const http = axios.create({ baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000' });
@@ -100,6 +103,21 @@ export const api = {
 
   importJson: (profileId: number, jobs: unknown[]) =>
     http.post('/import/json', { profile_id: profileId, jobs }).then((r) => r.data),
+
+  // ── AI Analysis ──────────────────────────────────────────
+  analyzeJob: (data: AnalyzeRequest) =>
+    http.post<JobAnalysis>('/ai/analyze', data).then((r) => r.data),
+
+  listAnalyses: (profileId: number, jobId?: number) =>
+    http.get<AnalysisSummary[]>('/ai/analyses', {
+      params: { profile_id: profileId, ...(jobId != null ? { job_id: jobId } : {}) },
+    }).then((r) => r.data),
+
+  getJobAnalysisHistory: (jobId: number) =>
+    http.get<AnalysisSummary[]>(`/ai/analyses/job/${jobId}/history`).then((r) => r.data),
+
+  getAnalysis: (id: number) =>
+    http.get<JobAnalysis>(`/ai/analyses/${id}`).then((r) => r.data),
 
   // ── Resume Vault ──────────────────────────────────────────
   getResumeConfig: () =>

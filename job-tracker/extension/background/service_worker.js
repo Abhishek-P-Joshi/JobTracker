@@ -43,6 +43,23 @@ async function handleMessage(message) {
       return res.json();
     }
 
+    case 'GET_RESUMES': {
+      const res = await fetch(`${BACKEND}/resumes`);
+      if (!res.ok) throw new Error(`Backend returned HTTP ${res.status}`);
+      return res.json();
+    }
+
+    case 'ANALYZE_JOB': {
+      const res = await fetch(`${BACKEND}/ai/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message.data),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(typeof json.detail === 'string' ? json.detail : `HTTP ${res.status}`);
+      return json;
+    }
+
     default:
       throw new Error(`Unknown message type: ${message.type}`);
   }

@@ -157,6 +157,58 @@ export interface WorkTypePoint {
 
 // ── Resume Vault ──────────────────────────────────────────────────────────────
 
+// ── AI Analysis ───────────────────────────────────────────────────────────────
+
+export interface Suggestion {
+  text: string;
+  score_impact: number;
+}
+
+export interface JobAnalysis {
+  id: number;
+  profile_id: number;
+  job_id: number | null;
+  job_title: string | null;
+  company: string | null;
+  url: string | null;
+  job_description: string;
+  scored_resume_filename: string;
+  master_resume_filename: string;
+  is_single_mode: boolean;
+  current_score: number;
+  projected_score: number | null;
+  strengths: string[];
+  gaps: string[];
+  suggestions: Suggestion[];
+  verdict: string | null;
+  run_at: string;
+}
+
+export interface AnalysisSummary {
+  id: number;
+  job_id: number | null;
+  job_title: string | null;
+  company: string | null;
+  scored_resume_filename: string;
+  current_score: number;
+  projected_score: number | null;
+  verdict: string | null;
+  run_at: string;
+}
+
+export interface AnalyzeRequest {
+  profile_id: number;
+  job_description: string;
+  scored_resume_filename: string;
+  master_resume_filename: string;
+  job_title?: string | null;
+  company?: string | null;
+  url?: string | null;
+  job_id?: number | null;
+}
+
+// ── Resume Vault ──────────────────────────────────────────────────────────────
+
 export interface ResumeConfig {
   folder_path: string | null;
   master_resume: string | null;

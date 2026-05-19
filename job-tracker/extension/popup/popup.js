@@ -4,6 +4,9 @@ const DASHBOARD_URL = 'http://localhost:5173';
 
 let profiles = [];
 let activeProfileId = null;
+let scrapedData = null;   // last successful scrape result
+let resumeFiles = [];
+let analyzeTabReady = false;
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -19,6 +22,25 @@ async function init() {
     chrome.tabs.create({ url: DASHBOARD_URL }).catch(() => {});
   });
   document.getElementById('profile-select').addEventListener('change', onProfileChange);
+  document.getElementById('run-analysis-btn').addEventListener('click', runAnalysis);
+  document.getElementById('re-analyze-btn').addEventListener('click', () => showAnalyzeState('setup'));
+  document.getElementById('analyze-retry-btn').addEventListener('click', () => showAnalyzeState('setup'));
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('.tab-btn').forEach((b) => {
+        b.classList.remove('tab-btn--active');
+        b.setAttribute('aria-selected', 'false');
+      });
+      btn.classList.add('tab-btn--active');
+      btn.setAttribute('aria-selected', 'true');
+      document.getElementById('tab-save').classList.toggle('hidden', tab !== 'save');
+      document.getElementById('tab-analyze').classList.toggle('hidden', tab !== 'analyze');
+      if (tab === 'analyze' && !analyzeTabReady) initAnalyzeTab();
+    });
+  });
 
   await loadProfiles();
   await scrapeCurrentTab();
@@ -96,6 +118,7 @@ async function scrapeCurrentTab() {
       .catch(() => null);
 
     if (result?.success && result.data) {
+      scrapedData = result.data;
       fillForm(result.data);
       setHint('success', `Auto-filled from ${sourceLabel(result.data.source)}`);
     } else {
@@ -229,4 +252,161 @@ function sourceLabel(src) {
     { linkedin: 'LinkedIn', naukri: 'Naukri', indeed: 'Indeed', greenhouse: 'Greenhouse' }[src] ??
     src
   );
+}
+
+// ── Analyze tab ──────────────────────────────────────────────
+
+async function initAnalyzeTab() {
+  analyzeTabReady = true;
+  try {
+    await loadResumeFiles();
+  } catch (_e) {
+    analyzeTabReady = false; // allow retry on next tab open
+  }
+  updateAnalyzeReadiness();
+}
+
+async function loadResumeFiles() {
+  const sel1 = document.getElementById('scored-resume-select');
+  const sel2 = document.getElementById('master-resume-select');
+  try {
+    resumeFiles = await sendToBackground({ type: 'GET_RESUMES' });
+    [sel1, sel2].forEach((s) => { while (s.firstChild) s.removeChild(s.firstChild); });
+
+    if (resumeFiles.length === 0) {
+      [sel1, sel2].forEach((s) => {
+        const o = document.createElement('option');
+        o.value = ''; o.textContent = 'No resumes found';
+        s.appendChild(o);
+      });
+      return;
+    }
+
+    for (const f of resumeFiles) {
+      const o1 = document.createElement('option');
+      o1.value = f.filename; o1.textContent = f.filename;
+      if (f.is_default) o1.selected = true;
+      sel1.appendChild(o1);
+
+      const o2 = document.createElement('option');
+      o2.value = f.filename; o2.textContent = f.filename;
+      if (f.is_master) o2.selected = true;
+      sel2.appendChild(o2);
+    }
+  } catch (_e) {
+    const notice = document.getElementById('analyze-notice');
+    notice.textContent = 'Configure your resume folder in the dashboard Settings first.';
+    notice.classList.remove('hidden');
+    sel1.disabled = true;
+    sel2.disabled = true;
+  }
+}
+
+function updateAnalyzeReadiness() {
+  const btn = document.getElementById('run-analysis-btn');
+  const notice = document.getElementById('analyze-notice');
+  const jd = document.getElementById('job_description')?.value?.trim();
+
+  if (resumeFiles.length === 0) {
+    // notice already set by loadResumeFiles on failure
+    btn.disabled = true;
+    return;
+  }
+  if (!jd) {
+    notice.textContent = 'Navigate to a job listing page to run analysis.';
+    notice.classList.remove('hidden');
+    btn.disabled = true;
+    return;
+  }
+  notice.classList.add('hidden');
+  btn.disabled = false;
+}
+
+async function runAnalysis() {
+  const jd = document.getElementById('job_description')?.value?.trim();
+  const scoredFilename = document.getElementById('scored-resume-select').value;
+  const masterFilename = document.getElementById('master-resume-select').value;
+  if (!jd || !scoredFilename || !masterFilename || !activeProfileId) return;
+
+  showAnalyzeState('loading');
+  try {
+    const result = await sendToBackground({
+      type: 'ANALYZE_JOB',
+      data: {
+        profile_id: activeProfileId,
+        job_description: jd,
+        scored_resume_filename: scoredFilename,
+        master_resume_filename: masterFilename,
+        job_title: scrapedData?.title ?? null,
+        company: scrapedData?.company ?? null,
+        url: scrapedData?.url ?? null,
+      },
+    });
+    renderAnalysisResult(result);
+    showAnalyzeState('result');
+  } catch (e) {
+    document.getElementById('analyze-error-msg').textContent = e.message || 'Analysis failed.';
+    showAnalyzeState('error');
+  }
+}
+
+function showAnalyzeState(state) {
+  ['setup', 'loading', 'result', 'error'].forEach((s) => {
+    document.getElementById(`analyze-${s}`).classList.toggle('hidden', s !== state);
+  });
+}
+
+function renderAnalysisResult(data) {
+  document.getElementById('result-score').textContent = data.current_score;
+  document.getElementById('result-projected').textContent =
+    data.projected_score != null ? `→ ${data.projected_score} projected` : '';
+  document.getElementById('result-verdict').textContent = data.verdict ?? '';
+  renderList('result-strengths', 'Strengths', data.strengths ?? [], '✓');
+  renderList('result-gaps', 'Gaps', data.gaps ?? [], '✗');
+  renderSuggestions('result-suggestions', data.suggestions ?? []);
+}
+
+function renderList(containerId, heading, items, icon) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  if (!items.length) return;
+  const h = document.createElement('p');
+  h.className = 'result-section-heading';
+  h.textContent = heading;
+  el.appendChild(h);
+  for (const item of items) {
+    const row = document.createElement('div');
+    row.className = 'result-item';
+    const iconEl = document.createElement('span');
+    iconEl.className = 'result-item-icon';
+    iconEl.textContent = icon;
+    const textEl = document.createElement('span');
+    textEl.textContent = item;
+    row.appendChild(iconEl);
+    row.appendChild(textEl);
+    el.appendChild(row);
+  }
+}
+
+function renderSuggestions(containerId, suggestions) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  if (!suggestions.length) return;
+  const h = document.createElement('p');
+  h.className = 'result-section-heading';
+  h.textContent = 'Suggestions';
+  el.appendChild(h);
+  for (const s of suggestions) {
+    const row = document.createElement('div');
+    row.className = 'result-item';
+    const iconEl = document.createElement('span');
+    iconEl.className = 'result-item-icon';
+    iconEl.textContent = '+';
+    const textEl = document.createElement('span');
+    const impact = s.score_impact > 0 ? ` (+${s.score_impact} pts)` : '';
+    textEl.textContent = s.text + impact;
+    row.appendChild(iconEl);
+    row.appendChild(textEl);
+    el.appendChild(row);
+  }
 }

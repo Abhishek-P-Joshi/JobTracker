@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Applications from './pages/Applications';
 import Insights from './pages/Insights';
 import Settings from './pages/Settings';
+import AnalysisHistory from './pages/AnalysisHistory';
 import { useProfileStore } from './store/profileStore';
 
 const queryClient = new QueryClient({
@@ -23,6 +24,7 @@ function AppInner() {
         <Route index element={<Dashboard />} />
         <Route path="applications" element={<Applications />} />
         <Route path="insights" element={<Insights />} />
+        <Route path="analysis" element={<AnalysisHistory />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
