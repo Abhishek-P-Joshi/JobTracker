@@ -86,6 +86,8 @@ JobTrack has three independent layers that communicate over localhost:
 
 All three components run locally. The extension and dashboard both talk to the backend over HTTP — they never communicate directly with each other.
 
+> **Interactive diagram:** [System Architecture →](https://excalidraw.com/#json=1_eQz4JSrDurer4l9GJ73,jLfCqXd6LrkeiLDLijyDLA)
+
 ---
 
 ## Tech Stack
@@ -208,6 +210,8 @@ Service Worker (service_worker.js)
 ▼
 FastAPI Backend
 ```
+
+> **Interactive diagram:** [Extension Pipeline →](https://excalidraw.com/#json=B_PAACPaa5IGsSwV1N9HY,FOHN7nwggV2cYXLIdn84pQ)
 
 ### Salary Parsing
 
@@ -568,6 +572,8 @@ GET /ai/analyses?profile_id=N       → list of AnalysisSummaryOut (no text fiel
 GET /ai/analyses/{id}               → full AnalysisOut (strengths, gaps, suggestions)
 GET /ai/jobs/{job_id}/analyses      → analysis history for one job (for JobDetailPanel)
 ```
+
+> **Interactive diagram:** [AI Analysis Data Flow →](https://excalidraw.com/#json=TksR7rqFIdsRExAToGj50,TIdeb9cStC1v-fE3lPlTxw)
 
 `job_id` is nullable — analyses run from the extension popup before saving a job have `job_id = NULL`. They appear on the AI Analysis history page but not in the job detail panel.
 
